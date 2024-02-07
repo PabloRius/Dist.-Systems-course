@@ -1,6 +1,7 @@
 # Laboratorio 1
 
 El fichero Makefile será utilizado para la compilación de los programas de este laboratorio.
+Para compilar el ejercicio basta con poner make {nombre del ejercicio que se quiere ejecutar(p1,p2,...)} en la linea de comandos, con make clean se eliminan los objetos y ejecutables generados.
 
 ## Ejercicio 1
 

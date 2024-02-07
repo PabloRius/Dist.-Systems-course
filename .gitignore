@@ -1,8 +1,17 @@
+# No ignorar los archivos .c 
+!.c
+
 # Ignorar archivos objeto generados durante la compilación
 *.o
-
-# Ignorar archivos ejecutables generados durante la compilación
-*
+p1 
+p2
+p3
+p4
+p5
+p6
 
 # No ignorar el .gitignore para poder trabajar con las mismas condiciones en cualquier entorno
 !.gitignore
+
+# Entorno VS Code
+.vscode
