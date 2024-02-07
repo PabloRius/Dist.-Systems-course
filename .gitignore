@@ -1,0 +1,8 @@
+# Ignorar archivos objeto generados durante la compilación
+*.o
+
+# Ignorar archivos ejecutables generados durante la compilación
+*
+
+# No ignorar el .gitignore para poder trabajar con las mismas condiciones en cualquier entorno
+!.gitignore
