@@ -1,4 +1,4 @@
-BIN_FILES  = p1 p2 p3 p4 p5 p6
+BIN_FILES  = p1 p2 p3 p4 p5 p6 p5LinkedList
 
 CC = gcc
 
@@ -24,10 +24,13 @@ p3: p3.o
 p4: p4.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^  -o $@
 
-p5: p5.o
+p5: p5.o p5LinkedList.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^  -o $@
 
 p6: p6.o
+	$(CC) $(CFLAGS) $(LDFLAGS) $^  -o $@
+
+p5LinkedList: p5LinkedList.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^  -o $@
 
 
