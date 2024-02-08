@@ -10,7 +10,7 @@ void readArgs(int argc, char **argv){
 			//		base numérica a la que queremos convertir la cadena
 			//  ) -> Devuelve un long int
 			long int value = strtol(argv[i],&end,10);
-			if(!(*end != '\0')){
+			if(*end == '\0'){
 				printf("Argumento %d = %ld\n",i,value);
 			}else{
 				printf("Argumento %d = Error de conversión\n",i);
