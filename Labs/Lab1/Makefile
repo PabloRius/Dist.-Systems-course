@@ -41,4 +41,4 @@ clean:
 	rm -f $(BIN_FILES) *.o
 
 .SUFFIXES:
-.PHONY : clean
+.PHONY : all clean
