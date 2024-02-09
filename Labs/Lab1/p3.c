@@ -71,10 +71,15 @@ int main(int argc, char **argv)
         max_min = obtenerMaxMin(array_length, array);
         printf("Valor Máximo: %d\nValor Mínimo: %d\n",max_min[0],max_min[1]);
 
+        if(array != NULL){
+            free(array);
+            array = NULL;
+        }
+
+        return 0;
 	}else{
 		printf("No se pasaron argumentos\n");
         printf("El array: []\n");
+        return -1;
 	}
-	
-	return 0;
 }
