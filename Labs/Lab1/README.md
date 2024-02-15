@@ -1,4 +1,4 @@
-# Laboratorio 1
+# Laboratorio 1 - Introducción a C
 
 El fichero Makefile será utilizado para la compilación de los programas de este laboratorio.
 Para compilar el ejercicio basta con poner make {nombre del ejercicio que se quiere ejecutar(p1,p2,...)} en la linea de comandos, con make clean se eliminan los objetos y ejecutables generados.
@@ -6,8 +6,6 @@ Para compilar el ejercicio basta con poner make {nombre del ejercicio que se qui
 ## Ejercicio 1
 
 Escribir un programa (p1.c) que acepte en la línea de mandatos un número indeterminado de argumentos. El programa debe imprimir cada argumento en una línea diferente como una línea de caracteres
-
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install foobar.
 
 ```bash
 ./p1 uno 4 hola tres 1245
