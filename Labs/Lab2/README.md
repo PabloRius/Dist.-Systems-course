@@ -67,7 +67,7 @@ Modifique el programa anterior (p2.c) de forma que cada thread imprima su id de 
 
 Modifique el programa enterior (p3.c) de forma que el siguiente código se ejecute en cada thread en exclusión mutua, usando un mutex.
 Con esta solución podremos acceder a recursos protegidos.
-(Para este código de ejemplo, esta solución no sería necesaria ya que no se dan condiciones de carrera, pero es necesario aprender a aplicarla para las apicaciones en las que sí lo sea).
+(Para este código de ejemplo, esta solución no sería necesaria ya que no se dan condiciones de carrera, pero es necesario aprender a aplicarla para las aplicaciones en las que sí lo sea).
 
 ```c
 k = (double) rand_r(&s) / RAND_MAX;

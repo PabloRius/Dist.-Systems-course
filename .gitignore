@@ -10,9 +10,15 @@ p4
 p5
 p5LinkedList
 p6
+p6nc
+p7
+p8
 
 # No ignorar el .gitignore para poder trabajar con las mismas condiciones en cualquier entorno
 !.gitignore
 
 # Entorno VS Code
 .vscode
+
+#Entorno virtual python
+.venv
