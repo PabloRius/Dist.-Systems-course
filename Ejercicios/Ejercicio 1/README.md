@@ -94,6 +94,36 @@ Se considera error:
 
 - Error en la comunicación.
 
+##
+
+Todas las operaciones se deben realizar de forma atómica en el servidor.
+
+Utilizando únicamente colas de mensajes POSIX y el lenguaje de programación C, diseñe e implemente un sistema para este servicio de tuplas.
+
+1. Desarrollar el código de _servidor.c_, que se encargará de gestionar las estructuras de datos que almacenarán las tuplas, este servidor debe ser concurrente. (La estructura de datos ha de ser elegida teniendo en cuenta que esta no debe suponer una limitación en el número de elementos que se pueden almacenar).
+2. Desarrollar el código que implementa los servicios anteriores _claves.c_. Este servicio ofrece la interfaz a los clientes contactando con el servidor. A partir de dicha implementación se creará una biblioteca dinámica libclaves.so, que será la que utilicen las aplicaciones de usuario para usar el servicio. (Trabajo de investigación por parte del alumno la creación de dicha biblioteca).
+3. Desarrollar el código de un cliente ejemplo _cliente.c_ que utilice la biblioteca anterior, el ejecutable de este programa debe generarse utilizando la biblioteca dinámica anterior.
+4. Elaborar un plan de pruebas del servicio desarrollado. Este plan se probará con el código del cliente anteriormente desarrollado.
+
+##
+
+Al desarrollar el ejercicio, es posible que las colas de mensajes se queden en un estado inconsistente y, tanto el cliente como el servidor, fallen en tiempo de ejecución.
+Lo mejor para arreglar este error es borrar las colas de mensajes que se hayan quedado en el sistema, en _/dev/mqueue_.
+
+## Material a entregar
+
+Fichero _ejercicio_evaluable1.tar_:
+
+- cliente.c
+- servidor.c
+- Makefile que permita compilar todos los archivos anteriores y generar la biblioteca dinámica libclaves.so. Debe generar un ejecutable para el servidor y otro para el cliente.
+- Pequeña memoria en pdf (máx 5 páginas, incluyendo portada), se indicarán las decisiones del diseño realizado,la estructura de datos elegida y la forma de compilar y generar los ejecutables.
+- Ficheros adicionales necesarios para el desarrollo del servicio.
+
+## Fecha límite
+
+17/03/2024 (23:55 horas)
+
 ## Autor
 
 - [@PabloRius](https://github.com/PabloRius)
