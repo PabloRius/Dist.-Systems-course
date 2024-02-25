@@ -29,38 +29,42 @@ Devuelve 0 en caso de éxito y -1 en caso de error.
 
 ### SET VALUE
 
-`````c
+```c
 int set_value(int key, char *value1, int N_value2, double *V_value2)
 ```
+
 Inserta la tupla definida por los argumentos.
 Devuelve 0 si se insertó y -1 en caso de error.
 Se considera error:
+
 - Intentar insertar una clave ya existente.
 - N está fuera de rango.
 - Error en la comunicación.
-
 
 ### GET VALUE
 
 ```c
 int set_value(int key, char *value1, int *N_value2, double *V_value2)
 ```
+
 Devuelve la tupla asociada a la clave key en los punteros pasados como argumentos.
 Los punteros deben tener reservado espacio suficiente para almacenar el tamaño máximo posible de los elementos.
 Devuelve 0 en caso de éxito y -1 en caso de error.
 Se considera error:
+
 - La clave no existe.
 - Error en la comunicación.
 
 ### MODIFY VALUE
 
-````c
+```c
 int modify_value(int key, char *value1, int N_value2, double *V_value2)
 ```
 
 Modifica los valores asociados a una clave key.
 Devuelve 0 en caso de éxito y -1 en caso de error.
 Se considera error:
+
 - La clave no existe.
 - N está fuera de rango.
 - Error en la comunicación.
@@ -74,6 +78,7 @@ int delete_key(int key)
 Borra la tupla con clave key.
 Devuelve 0 en caso de éxito y -1 en caso de error.
 Se considera error:
+
 - La clave no existe.
 - Error en la comunicación.
 
@@ -86,9 +91,9 @@ int exist(int key)
 Permite determinar si existe un elemento con clave key.
 Devuelve 1 en caso de que exista, 0 en caso de que no exista y -1 en caso de error.
 Se considera error:
+
 - Error en la comunicación.
 
 ## Autor
 
 - [@PabloRius](https://github.com/PabloRius)
-`````
