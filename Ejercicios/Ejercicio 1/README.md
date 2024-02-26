@@ -44,7 +44,7 @@ Se considera error:
 ### GET VALUE
 
 ```c
-int set_value(int key, char *value1, int *N_value2, double *V_value2)
+int get_value(int key, char *value1, int *N_value2, double *V_value2)
 ```
 
 Devuelve la tupla asociada a la clave key en los punteros pasados como argumentos.
