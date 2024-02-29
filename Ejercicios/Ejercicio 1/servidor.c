@@ -1,8 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <mqueue.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include "ABB.h"
 #include "utils.h"
+
+#define MAX_BUFFER 10           /* tamaño del buffer */
+#define DATOS_A_PRODUCIR 100000 /* datos a producir */
 
 void data_struct_test1()
 {
@@ -174,11 +180,37 @@ void data_struct_test5()
 
 int main(int argc, char **argv)
 {
-    // int data_struct_initilised = 0;
-    // data_struct_test1();
-    // data_struct_test2();
-    // data_struct_test3();
-    // data_struct_test4();
-    data_struct_test5();
-    return 0;
+
+    mqd_t mq; /* cola de mensajes donde dejar los    datos
+  producidos y extraer los datos a consumir */
+    struct mq_attr attr;
+
+    attr.mq_maxmsg = MAX_BUFFER;
+    attr.mq_msgsize = sizeof(char);
+    mq = mq_open("/tuple_sv_queue", O_CREAT | O_RDWR, 0700, &attr);
+    if (mq == -1)
+    {
+        perror("mq_open");
+        exit(-1);
+    }
+
+    char *dato = malloc(sizeof(char));
+
+    for (;;)
+    {
+        /* recibir dato */
+        printf("Esperando un dato\n");
+        if (mq_receive(mq, dato, sizeof(char), 0) == -1)
+        {
+            perror("mq_receive");
+            mq_close(mq);
+            exit(1);
+        }
+        /* Consumir el dato */
+        printf("El dato consumido es: %s\n", dato);
+    } /* end for */
+
+    mq_close(mq);
+
+    return (0);
 }

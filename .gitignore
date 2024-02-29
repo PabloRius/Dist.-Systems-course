@@ -13,6 +13,8 @@ p6
 p6nc
 p7
 p8
+cliente
+servidor
 
 # No ignorar el .gitignore para poder trabajar con las mismas condiciones en cualquier entorno
 !.gitignore
@@ -22,3 +24,5 @@ p8
 
 #Entorno virtual python
 .venv
+
+ejemplos
