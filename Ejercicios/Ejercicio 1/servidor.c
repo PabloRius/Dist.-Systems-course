@@ -7,6 +7,27 @@
 #include "ABB.h"
 #include "utils.h"
 
+#define INIT 0
+#define GET 1
+#define SET 2
+#define MODIFY 3
+#define DELETE 4
+#define EXIST 5
+
+enum Operation
+{
+    init = INIT,
+    get = GET,
+    set = SET,
+    modify = MODIFY,
+    delet = DELETE, // delete es una keyword reservada
+    exist = EXIST
+};
+typedef struct Message
+{
+    enum Operation operation;
+} Message;
+
 #define MAX_BUFFER 10           /* tamaño del buffer */
 #define DATOS_A_PRODUCIR 100000 /* datos a producir */
 
