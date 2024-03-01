@@ -14,20 +14,6 @@
 #define DELETE 4
 #define EXIST 5
 
-enum Operation
-{
-    init = INIT,
-    get = GET,
-    set = SET,
-    modify = MODIFY,
-    delet = DELETE, // delete es una keyword reservada
-    exist = EXIST
-};
-typedef struct Message
-{
-    enum Operation operation;
-} Message;
-
 #define MAX_BUFFER 10           /* tamaño del buffer */
 #define DATOS_A_PRODUCIR 100000 /* datos a producir */
 
@@ -199,6 +185,36 @@ void data_struct_test5()
     }
 }
 
+void init()
+{
+    printf("Init service\n");
+}
+
+void get_tuple(char *input)
+{
+    printf("Get tuple service + %s\n", input);
+}
+
+void set_tuple(char *input)
+{
+    printf("Set tuple service + %s\n", input);
+}
+
+void modify_tuple(char *input)
+{
+    printf("Modify tuple service + %s\n", input);
+}
+
+void delete_tuple(char *input)
+{
+    printf("Delete tuple service + %s\n", input);
+}
+
+void exist_tuple(char *input)
+{
+    printf("Exist tuple service + %s\n", input);
+}
+
 int main(int argc, char **argv)
 {
 
@@ -228,7 +244,48 @@ int main(int argc, char **argv)
             exit(1);
         }
         /* Consumir el dato */
-        printf("El dato consumido es: %s\n", dato);
+        char *end;
+
+        switch (strtol(dato, &end, 10))
+        {
+        case INIT:
+            init();
+            break;
+
+        case GET:
+            get_tuple(dato);
+            break;
+
+        case SET:
+            set_tuple(dato);
+            break;
+
+        case MODIFY:
+            modify_tuple(dato);
+            break;
+
+        case DELETE:
+            delete_tuple(dato);
+            break;
+
+        case EXIST:
+            exist_tuple(dato);
+            break;
+
+        default:
+            printf("El dato consumido es: %s\n", dato);
+
+            if (*end == '\0')
+            {
+                printf("El código de operación debe estar entre 0 y 5\n");
+            }
+            else
+            {
+                printf("Error al registrar el número de operación\n");
+            }
+
+            break;
+        }
     } /* end for */
 
     mq_close(mq);
