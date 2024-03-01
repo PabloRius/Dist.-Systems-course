@@ -18,177 +18,25 @@
 #define MAX_BUFFER 10           /* tamaño del buffer */
 #define DATOS_A_PRODUCIR 100000 /* datos a producir */
 
-void data_struct_test1()
+void init(struct Mensaje msg)
 {
-    struct Tree *tree;
-    init_tree(&tree);
+    printf("Init service, response queue: %s\n", msg.queue);
 
-    int key1 = 100;
-    int key2 = 50;
-    int key3 = 200;
-    int key4 = 75;
-    int key5 = 25;
-    int key6 = 15;
-    int key7 = 35;
-    int key8 = 175;
-    char cadena[MAX_LENGTH] = "abcdef";
-    int N = 2;
-    double vector[2] = {1.5, 1.5};
-    print_tree(tree, 0);
-    post_node(tree, key1, cadena, N, vector);
-    print_tree(tree, 0);
-    post_node(tree, key1, cadena, N, vector);
-    post_node(tree, key2, cadena, N, vector);
-    post_node(tree, key3, cadena, N, vector);
-    post_node(tree, key4, cadena, N, vector);
-    post_node(tree, key5, cadena, N, vector);
-    post_node(tree, key6, cadena, N, vector);
-    post_node(tree, key7, cadena, N, vector);
-    post_node(tree, key8, cadena, N, vector);
-    post_node(tree, key5, cadena, N, vector);
-    print_tree(tree, 1);
-}
-
-void data_struct_test2()
-{
-    struct Tree *tree;
-    init_tree(&tree);
-
-    int key1 = 100;
-    char cadena1[MAX_LENGTH] = "abcd";
-    int N1 = 2;
-    double vector1[2] = {1.1, 1.2};
-
-    int key2 = 50;
-    char cadena2[MAX_LENGTH] = "efgh";
-    int N2 = 3;
-    double vector2[3] = {1.3, 1.4, 1.5};
-
-    int key3 = 200;
-    char cadena3[MAX_LENGTH] = "ijkl";
-    int N3 = 4;
-    double vector3[4] = {1.6, 1.7, 1.8, 1.9};
-
-    char cadena_dest[MAX_LENGTH];
-    int N_dest;
-    double *vector_dest = malloc(32 * sizeof(double));
-    post_node(tree, key1, cadena1, N1, vector1);
-    post_node(tree, key2, cadena2, N2, vector2);
-    post_node(tree, key3, cadena3, N3, vector3);
-    print_tree(tree, 1);
-    get_node(tree, key3, cadena_dest, &N_dest, vector_dest);
-    printf("Resultado: %s, %d, ", cadena_dest, N_dest);
-    print_double_array(vector_dest, N_dest);
-}
-
-void data_struct_test3()
-{
-    struct Tree *tree;
-    init_tree(&tree);
-
-    int key1 = 100;
-    char cadena1[MAX_LENGTH] = "abcd";
-    int N1 = 2;
-    double vector1[2] = {1.1, 1.2};
-
-    int key2 = 50;
-    char cadena2[MAX_LENGTH] = "efgh";
-    int N2 = 3;
-    double vector2[3] = {1.3, 1.4, 1.5};
-
-    int key3 = 200;
-    char cadena3[MAX_LENGTH] = "ijkl";
-    int N3 = 4;
-    double vector3[4] = {1.6, 1.7, 1.8, 1.9};
-
-    char nueva_cadena[MAX_LENGTH] = "mnño";
-    int nueva_N = 5;
-    double nuevo_vector[5] = {2.0, 2.1, 2.2, 2.3, 2.4};
-    post_node(tree, key1, cadena1, N1, vector1);
-    post_node(tree, key2, cadena2, N2, vector2);
-    post_node(tree, key3, cadena3, N3, vector3);
-    print_tree(tree, 1);
-    patch_node(tree, key1, nueva_cadena, nueva_N, nuevo_vector);
-    print_tree(tree, 1);
-}
-
-void data_struct_test4()
-{
-    struct Tree *tree;
-    init_tree(&tree);
-
-    int key1 = 100;
-    char cadena1[MAX_LENGTH] = "abcd";
-    int N1 = 2;
-    double vector1[2] = {1.1, 1.2};
-
-    int key2 = 50;
-    char cadena2[MAX_LENGTH] = "efgh";
-    int N2 = 3;
-    double vector2[3] = {1.3, 1.4, 1.5};
-
-    int key3 = 200;
-    char cadena3[MAX_LENGTH] = "ijkl";
-    int N3 = 4;
-    double vector3[4] = {1.6, 1.7, 1.8, 1.9};
-
-    int key4 = 150;
-    char cadena4[MAX_LENGTH] = "ijkl";
-    int N4 = 4;
-    double vector4[4] = {1.6, 1.7, 1.8, 1.9};
-
-    int key5 = 101;
-    char cadena5[MAX_LENGTH] = "ijkl";
-    int N5 = 4;
-    double vector5[4] = {1.6, 1.7, 1.8, 1.9};
-
-    post_node(tree, key1, cadena1, N1, vector1);
-    post_node(tree, key2, cadena2, N2, vector2);
-    post_node(tree, key3, cadena3, N3, vector3);
-    post_node(tree, key4, cadena4, N4, vector4);
-    post_node(tree, key5, cadena5, N5, vector5);
-    print_tree(tree, 1);
-    delete_node(tree, key1);
-    print_tree(tree, 1);
-}
-
-void data_struct_test5()
-{
-    struct Tree *tree;
-    init_tree(&tree);
-
-    int key1 = 100;
-    char cadena1[MAX_LENGTH] = "abcd";
-    int N1 = 2;
-    double vector1[2] = {1.1, 1.2};
-
-    int key2 = 50;
-    char cadena2[MAX_LENGTH] = "efgh";
-    int N2 = 3;
-    double vector2[3] = {1.3, 1.4, 1.5};
-
-    int key3 = 200;
-    char cadena3[MAX_LENGTH] = "ijkl";
-    int N3 = 4;
-    double vector3[4] = {1.6, 1.7, 1.8, 1.9};
-
-    post_node(tree, key1, cadena1, N1, vector1);
-    post_node(tree, key2, cadena2, N2, vector2);
-    post_node(tree, key3, cadena3, N3, vector3);
-    print_tree(tree, 1);
-    if (head_node(tree, 201) == 1)
+    struct Respuesta res;
+    res.codigo = 1;
+    mqd_t mq;
+    mq = mq_open(msg.queue, O_WRONLY);
+    if (mq == -1)
     {
-        printf("Node exists\n");
+        perror("mq_open");
+        exit(-1);
     }
-    else
+    if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
     {
-        printf("Node doesn't exist\n");
+        perror("mq_send");
+        mq_close(mq);
+        exit(1);
     }
-}
-
-void init()
-{
-    printf("Init service\n");
 }
 
 void get_tuple(struct Mensaje msg)
@@ -250,7 +98,7 @@ int main(int argc, char **argv)
         switch (strtol(msg.op, &end, 10))
         {
         case INIT:
-            init();
+            init(msg);
             break;
 
         case GET:

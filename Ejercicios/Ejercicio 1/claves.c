@@ -6,6 +6,9 @@
 #include <mqueue.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
 
 #define QUEUE_NAME "/tuple_sv_queue"
 #define MAX_MSG_SIZE 256
@@ -34,19 +37,27 @@ int init()
         return -1;
     }
 
-    // char *dato = malloc(sizeof(char)); // Asignar memoria para dato
-    // if (dato == NULL)
-    // {
-    //     perror("malloc");
-    //     exit(-1);
-    // }
-
     /* producir dato */
     struct Mensaje msg;
 
     strcpy(msg.op, INIT);
+    char queue_name[MAX_LENGTH];
+    sprintf(queue_name, "/Cola-%d", getpid());
+    strcpy(msg.queue, queue_name);
 
-    printf("Enviando: %s\n", msg.op);
+    mqd_t mq_rcv;
+    struct mq_attr attr;
+
+    attr.mq_maxmsg = 1;
+    attr.mq_msgsize = sizeof(struct Respuesta);
+    mq_rcv = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
+    if (mq_rcv == -1)
+    {
+        perror("mq_open");
+        exit(-1);
+    }
+
+    printf("Enviando: %s, %s\n", msg.op, msg.queue);
 
     if (mq_send(mq, (const char *)&msg, sizeof(msg), 0) < 0)
     {
@@ -54,9 +65,20 @@ int init()
         mq_close(mq);
         exit(1);
     }
+    struct Respuesta res;
+
+    printf("Esperando un dato\n");
+    if (mq_receive(mq_rcv, (char *)&res, sizeof(res), 0) == -1)
+    {
+        perror("mq_receive");
+        mq_close(mq_rcv);
+        exit(1);
+    }
+    printf("Respuesta: %d\n", res.codigo);
 
     // Cerrar la cola de mensajes
     mq_close(mq);
+    mq_close(mq_rcv);
     return 0;
 }
 
