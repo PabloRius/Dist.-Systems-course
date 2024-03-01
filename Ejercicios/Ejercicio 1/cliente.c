@@ -7,6 +7,8 @@
 
 #include "claves.h"
 
+#define MAX_LENGTH 255
+
 int main()
 {
 
@@ -20,7 +22,7 @@ int main()
     int N2 = 3;
     double vector2[3] = {1.3, 1.4, 1.5};
 
-    init_data();
+    init();
 
     set_value(key1, cadena1, N1, vector1);
     return (0);

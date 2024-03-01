@@ -6,6 +6,7 @@
 
 #include "ABB.h"
 #include "utils.h"
+#include "mensaje.h"
 
 #define INIT 0
 #define GET 1
@@ -190,29 +191,29 @@ void init()
     printf("Init service\n");
 }
 
-void get_tuple(char *input)
+void get_tuple(struct Mensaje msg)
 {
-    printf("Get tuple service + %s\n", input);
+    printf("Get tuple service + %s\n", msg.cadena);
 }
 
-void set_tuple(char *input)
+void set_tuple(struct Mensaje msg)
 {
-    printf("Set tuple service + %s\n", input);
+    printf("Set tuple service + %s\n", msg.cadena);
 }
 
-void modify_tuple(char *input)
+void modify_tuple(struct Mensaje msg)
 {
-    printf("Modify tuple service + %s\n", input);
+    printf("Modify tuple service + %s\n", msg.cadena);
 }
 
-void delete_tuple(char *input)
+void delete_tuple(struct Mensaje msg)
 {
-    printf("Delete tuple service + %s\n", input);
+    printf("Delete tuple service + %s\n", msg.cadena);
 }
 
-void exist_tuple(char *input)
+void exist_tuple(struct Mensaje msg)
 {
-    printf("Exist tuple service + %s\n", input);
+    printf("Exist tuple service + %s\n", msg.cadena);
 }
 
 int main(int argc, char **argv)
@@ -222,8 +223,8 @@ int main(int argc, char **argv)
   producidos y extraer los datos a consumir */
     struct mq_attr attr;
 
-    attr.mq_maxmsg = MAX_BUFFER;
-    attr.mq_msgsize = sizeof(char);
+    attr.mq_maxmsg = 10;
+    attr.mq_msgsize = sizeof(struct Mensaje);
     mq = mq_open("/tuple_sv_queue", O_CREAT | O_RDWR, 0700, &attr);
     if (mq == -1)
     {
@@ -231,13 +232,13 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
-    char *dato = malloc(sizeof(char));
+    struct Mensaje msg;
 
     for (;;)
     {
         /* recibir dato */
         printf("Esperando un dato\n");
-        if (mq_receive(mq, dato, sizeof(char), 0) == -1)
+        if (mq_receive(mq, (char *)&msg, sizeof(msg), 0) == -1)
         {
             perror("mq_receive");
             mq_close(mq);
@@ -246,34 +247,34 @@ int main(int argc, char **argv)
         /* Consumir el dato */
         char *end;
 
-        switch (strtol(dato, &end, 10))
+        switch (strtol(msg.op, &end, 10))
         {
         case INIT:
             init();
             break;
 
         case GET:
-            get_tuple(dato);
+            get_tuple(msg);
             break;
 
         case SET:
-            set_tuple(dato);
+            set_tuple(msg);
             break;
 
         case MODIFY:
-            modify_tuple(dato);
+            modify_tuple(msg);
             break;
 
         case DELETE:
-            delete_tuple(dato);
+            delete_tuple(msg);
             break;
 
         case EXIST:
-            exist_tuple(dato);
+            exist_tuple(msg);
             break;
 
         default:
-            printf("El dato consumido es: %s\n", dato);
+            printf("El dato consumido es: %s\n", msg.op);
 
             if (*end == '\0')
             {

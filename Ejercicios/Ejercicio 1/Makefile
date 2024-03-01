@@ -15,6 +15,6 @@ cliente: cliente.o claves.o
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
 
 clean:
-	rm -f servidor cliente servidor.o ABB.o utils.o cliente.o claves.o
+	rm -f servidor cliente *.o
 
 .PHONY: all clean
