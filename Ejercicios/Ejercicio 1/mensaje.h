@@ -2,11 +2,11 @@
 
 struct Mensaje
 {
-    char op[1];
+    char op[2];
     int key;
     char cadena[MAX_MESSAGE];
     int N;
-    double *vector;
+    double vector[32];
     char queue[MAX_MESSAGE];
 };
 
@@ -16,5 +16,5 @@ struct Respuesta
     int key;
     char cadena[MAX_MESSAGE];
     int N;
-    double *vector;
+    double vector[32];
 };

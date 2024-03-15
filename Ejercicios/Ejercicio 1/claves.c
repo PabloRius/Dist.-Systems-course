@@ -1,5 +1,6 @@
 #include "claves.h"
 #include "mensaje.h"
+#include "utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -25,118 +26,449 @@ mqd_t mq;
 
 int init()
 {
-    // Inicializa el servicio de tuplas,
-    // se eliminarán todas las tuplas que
-    // existiesen anteriormente
+    // Inicializar la colas de mensajes
+    mqd_t mq_msg;
+    mqd_t mq_res;
 
-    // Abrir la cola de mensajes
-    mq = mq_open(QUEUE_NAME, O_RDWR);
-    if (mq == -1)
-    {
-        perror("mq_open");
-        return -1;
-    }
-
-    /* producir dato */
-    struct Mensaje msg;
-
-    strcpy(msg.op, INIT);
+    // Definir la cola para la respuesta del servidor
+    // Nombre
     char queue_name[MAX_LENGTH];
     sprintf(queue_name, "/Cola-%d", getpid());
-    strcpy(msg.queue, queue_name);
 
-    mqd_t mq_rcv;
+    // Atributos
     struct mq_attr attr;
-
     attr.mq_maxmsg = 1;
     attr.mq_msgsize = sizeof(struct Respuesta);
-    mq_rcv = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
-    if (mq_rcv == -1)
-    {
-        perror("mq_open");
-        exit(-1);
-    }
 
-    printf("Enviando: %s, %s\n", msg.op, msg.queue);
-
-    if (mq_send(mq, (const char *)&msg, sizeof(msg), 0) < 0)
-    {
-        perror("mq_send");
-        mq_close(mq);
+    // Abrir las colas
+    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
+    if (mq_res == -1)
+    { // Controlar errores al abrir las colas
+        perror("Error al crear la cola de respuesta");
         exit(1);
     }
+    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
+    if (mq_msg == -1)
+    { // Controlar errores al abrir las colas
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        perror("Error al abrir la cola del servidor");
+        exit(1);
+    }
+
+    // Producir dato
+    struct Mensaje msg;
+
+    strcpy(msg.op, INIT);          // Clave de operación
+    strcpy(msg.queue, queue_name); // Nombre de la cola de respuesta
+
+    // Enviar mensaje producido
+    printf("Enviando mensaje\n");
+
+    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
+    {
+        perror("Error al mandar el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+
+    // Leer respuesta del servidor
     struct Respuesta res;
 
-    printf("Esperando un dato\n");
-    if (mq_receive(mq_rcv, (char *)&res, sizeof(res), 0) == -1)
+    printf("Esperando respuesta del servidor\n");
+    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
     {
-        perror("mq_receive");
-        mq_close(mq_rcv);
+        perror("Error al recibir el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
         exit(1);
     }
     printf("Respuesta: %d\n", res.codigo);
 
-    // Cerrar la cola de mensajes
-    mq_close(mq);
-    mq_close(mq_rcv);
-    return 0;
+    // Cerrar las colas de mensajes
+    mq_close(mq_msg);
+    mq_close(mq_res);
+    mq_unlink(queue_name);
+    return res.codigo;
 }
 
 int set_value(int key, char *value1, int N_value2, double *V_value2)
 {
-    // Inserta la tupla definida por los
-    // argumentos
 
-    // Abrir la cola de mensajes
-    mq = mq_open(QUEUE_NAME, O_RDWR);
-    if (mq == -1)
-    {
-        perror("mq_open");
-        return -1;
+    // Inicializar la colas de mensajes
+    mqd_t mq_msg;
+    mqd_t mq_res;
+
+    // Definir la cola para la respuesta del servidor
+    // Nombre
+    char queue_name[MAX_LENGTH];
+    sprintf(queue_name, "/Cola-%d", getpid());
+
+    // Atributos
+    struct mq_attr attr;
+    attr.mq_maxmsg = 1;
+    attr.mq_msgsize = sizeof(struct Respuesta);
+
+    // Abrir las colas
+    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
+    if (mq_res == -1)
+    { // Controlar errores al abrir las colas
+        perror("Error al crear la cola de respuesta");
+        exit(1);
     }
-
-    /* producir dato */
-    struct Mensaje msg;
-
-    strcpy(msg.op, SET);
-    msg.key = key;
-    strcpy(msg.cadena, value1);
-    msg.N = N_value2;
-    msg.vector = V_value2;
-
-    printf("Enviando: %s\n", msg.op);
-
-    if (mq_send(mq, (const char *)&msg, sizeof(msg), 0) < 0)
-    {
-        perror("mq_send");
-        mq_close(mq);
+    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
+    if (mq_msg == -1)
+    { // Controlar errores al abrir las colas
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        perror("Error al abrir la cola del servidor");
         exit(1);
     }
 
-    // Cerrar la cola de mensajes
-    mq_close(mq);
+    // Producir dato
+    struct Mensaje msg;
 
-    return 0;
+    strcpy(msg.op, SET);                                     // Clave de operación
+    msg.key = key;                                           // Key
+    strcpy(msg.cadena, value1);                              // Cadena
+    msg.N = N_value2;                                        // N
+    memcpy(msg.vector, V_value2, N_value2 * sizeof(double)); // Vector de doubles
+    strcpy(msg.queue, queue_name);                           // Nombre de la cola de respuesta
+
+    // Enviar mensaje producido
+    printf("Enviando mensaje\n");
+
+    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
+    {
+        perror("Error al mandar el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+
+    // Leer respuesta del servidor
+    struct Respuesta res;
+
+    printf("Esperando respuesta del servidor\n");
+    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
+    {
+        perror("Error al recibir el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+    printf("Respuesta: %d\n", res.codigo);
+
+    // Cerrar las colas de mensajes
+    mq_close(mq_msg);
+    mq_close(mq_res);
+    mq_unlink(queue_name);
+    return res.codigo;
 }
 
 int get_value(int key, char *value1, int *N_value2, double *V_value2)
 {
-    // Deuvelve la tupla asociada a key
-    // en los punteros pasados por argumentos
-    return 0;
+
+    // Inicializar la colas de mensajes
+    mqd_t mq_msg;
+    mqd_t mq_res;
+
+    // Definir la cola para la respuesta del servidor
+    // Nombre
+    char queue_name[MAX_LENGTH];
+    sprintf(queue_name, "/Cola-%d", getpid());
+
+    // Atributos
+    struct mq_attr attr;
+    attr.mq_maxmsg = 1;
+    attr.mq_msgsize = sizeof(struct Respuesta);
+
+    // Abrir las colas
+    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
+    if (mq_res == -1)
+    { // Controlar errores al abrir las colas
+        perror("Error al crear la cola de respuesta");
+        exit(1);
+    }
+    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
+    if (mq_msg == -1)
+    { // Controlar errores al abrir las colas
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        perror("Error al abrir la cola del servidor");
+        exit(1);
+    }
+
+    // Producir dato
+    struct Mensaje msg;
+
+    strcpy(msg.op, GET);           // Clave de operación
+    msg.key = key;                 // Key
+    strcpy(msg.queue, queue_name); // Nombre de la cola de respuesta
+
+    // Enviar mensaje producido
+    printf("Enviando mensaje\n");
+
+    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
+    {
+        perror("Error al mandar el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+
+    // Leer respuesta del servidor
+    struct Respuesta res;
+
+    printf("Esperando respuesta del servidor\n");
+    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
+    {
+        perror("Error al recibir el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+    printf("Respuesta: %d\n", res.codigo);
+    // Devolver los datos recuperados a los punteros del cliente
+    if (res.codigo >= 0)
+    {
+        strcpy(value1, res.cadena);
+        N_value2 = res.N;
+        memcpy(V_value2, res.vector);
+    }
+
+    // Cerrar las colas de mensajes
+    mq_close(mq_msg);
+    mq_close(mq_res);
+    mq_unlink(queue_name);
+    return res.codigo;
 }
 
 int modify_value(int key, char *value1, int N_value2, double *V_value2)
 {
-    return 0;
+
+    // Inicializar la colas de mensajes
+    mqd_t mq_msg;
+    mqd_t mq_res;
+
+    // Definir la cola para la respuesta del servidor
+    // Nombre
+    char queue_name[MAX_LENGTH];
+    sprintf(queue_name, "/Cola-%d", getpid());
+
+    // Atributos
+    struct mq_attr attr;
+    attr.mq_maxmsg = 1;
+    attr.mq_msgsize = sizeof(struct Respuesta);
+
+    // Abrir las colas
+    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
+    if (mq_res == -1)
+    { // Controlar errores al abrir las colas
+        perror("Error al crear la cola de respuesta");
+        exit(1);
+    }
+    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
+    if (mq_msg == -1)
+    { // Controlar errores al abrir las colas
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        perror("Error al abrir la cola del servidor");
+        exit(1);
+    }
+
+    // Producir dato
+    struct Mensaje msg;
+
+    strcpy(msg.op, MODIFY);                                  // Clave de operación
+    msg.key = key;                                           // Key
+    strcpy(msg.cadena, value1);                              // Cadena
+    msg.N = N_value2;                                        // N
+    memcpy(msg.vector, V_value2, N_value2 * sizeof(double)); // Vector de doubles
+    strcpy(msg.queue, queue_name);                           // Nombre de la cola de respuesta
+
+    // Enviar mensaje producido
+    printf("Enviando mensaje\n");
+
+    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
+    {
+        perror("Error al mandar el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+
+    // Leer respuesta del servidor
+    struct Respuesta res;
+
+    printf("Esperando respuesta del servidor\n");
+    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
+    {
+        perror("Error al recibir el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+    printf("Respuesta: %d\n", res.codigo);
+
+    // Cerrar las colas de mensajes
+    mq_close(mq_msg);
+    mq_close(mq_res);
+    mq_unlink(queue_name);
+    return res.codigo;
 }
 
 int delete_key(int key)
 {
-    return 0;
+
+    // Inicializar la colas de mensajes
+    mqd_t mq_msg;
+    mqd_t mq_res;
+
+    // Definir la cola para la respuesta del servidor
+    // Nombre
+    char queue_name[MAX_LENGTH];
+    sprintf(queue_name, "/Cola-%d", getpid());
+
+    // Atributos
+    struct mq_attr attr;
+    attr.mq_maxmsg = 1;
+    attr.mq_msgsize = sizeof(struct Respuesta);
+
+    // Abrir las colas
+    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
+    if (mq_res == -1)
+    { // Controlar errores al abrir las colas
+        perror("Error al crear la cola de respuesta");
+        exit(1);
+    }
+    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
+    if (mq_msg == -1)
+    { // Controlar errores al abrir las colas
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        perror("Error al abrir la cola del servidor");
+        exit(1);
+    }
+
+    // Producir dato
+    struct Mensaje msg;
+
+    strcpy(msg.op, DELETE);        // Clave de operación
+    msg.key = key;                 // Key
+    strcpy(msg.queue, queue_name); // Nombre de la cola de respuesta
+
+    // Enviar mensaje producido
+    printf("Enviando mensaje\n");
+
+    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
+    {
+        perror("Error al mandar el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+
+    // Leer respuesta del servidor
+    struct Respuesta res;
+
+    printf("Esperando respuesta del servidor\n");
+    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
+    {
+        perror("Error al recibir el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+    printf("Respuesta: %d\n", res.codigo);
+
+    // Cerrar las colas de mensajes
+    mq_close(mq_msg);
+    mq_close(mq_res);
+    mq_unlink(queue_name);
+    return res.codigo;
 }
 
 int exist_key(int key)
 {
-    return 0;
+
+    // Inicializar la colas de mensajes
+    mqd_t mq_msg;
+    mqd_t mq_res;
+
+    // Definir la cola para la respuesta del servidor
+    // Nombre
+    char queue_name[MAX_LENGTH];
+    sprintf(queue_name, "/Cola-%d", getpid());
+
+    // Atributos
+    struct mq_attr attr;
+    attr.mq_maxmsg = 1;
+    attr.mq_msgsize = sizeof(struct Respuesta);
+
+    // Abrir las colas
+    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
+    if (mq_res == -1)
+    { // Controlar errores al abrir las colas
+        perror("Error al crear la cola de respuesta");
+        exit(1);
+    }
+    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
+    if (mq_msg == -1)
+    { // Controlar errores al abrir las colas
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        perror("Error al abrir la cola del servidor");
+        exit(1);
+    }
+
+    // Producir dato
+    struct Mensaje msg;
+
+    strcpy(msg.op, EXIST);         // Clave de operación
+    msg.key = key;                 // Key
+    strcpy(msg.queue, queue_name); // Nombre de la cola de respuesta
+
+    // Enviar mensaje producido
+    printf("Enviando mensaje\n");
+
+    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
+    {
+        perror("Error al mandar el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+
+    // Leer respuesta del servidor
+    struct Respuesta res;
+
+    printf("Esperando respuesta del servidor\n");
+    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
+    {
+        perror("Error al recibir el mensaje");
+        mq_close(mq_msg);
+        mq_close(mq_res);
+        mq_unlink(queue_name);
+        exit(1);
+    }
+    printf("Respuesta: %d\n", res.codigo);
+
+    // Cerrar las colas de mensajes
+    mq_close(mq_msg);
+    mq_close(mq_res);
+    mq_unlink(queue_name);
+    return res.codigo;
 }

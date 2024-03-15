@@ -70,6 +70,7 @@ int post_node(struct Tree *tree, int key, char cadena[MAX_LENGTH], int N, double
     strcpy(newNode->cadena, cadena);
     newNode->N = N;
     newNode->vector = (double *)malloc(N * sizeof(double));
+
     if (newNode->vector == NULL)
     {
         free(newNode);
@@ -102,9 +103,8 @@ int post_node(struct Tree *tree, int key, char cadena[MAX_LENGTH], int N, double
             else
             {
                 // La key ya existe
-                free(newNode->vector);
                 free(newNode);
-                tree_error("La clave introducida ya existe");
+                return tree_error("La clave introducida ya existe");
             }
         }
 

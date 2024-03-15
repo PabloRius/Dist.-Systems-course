@@ -4,6 +4,7 @@
 #include <mqueue.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "claves.h"
 
@@ -24,6 +25,8 @@ int main()
 
     init();
 
-    set_value(key1, cadena1, N1, vector1);
+    set_value(key1, cadena1, N2, vector1);
+    sleep(2);
+    set_value(key1, cadena1, N2, vector1);
     return (0);
 }

@@ -8,7 +8,7 @@ all: servidor cliente
 servidor: servidor.o ABB.o utils.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^  -o $@
 
-cliente: cliente.o claves.o
+cliente: cliente.o claves.o utils.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^  -o $@
 
 %.o: %.c

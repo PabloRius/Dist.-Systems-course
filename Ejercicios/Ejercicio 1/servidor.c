@@ -70,7 +70,7 @@ void get_tuple(struct Mensaje msg)
         res.codigo = -1;
     }
 
-    if (get_node(tree, msg.key, res.cadena, res.N, res.vector) == -1)
+    if (get_node(tree, msg.key, res.cadena, &res.N, res.vector) == -1)
     {
         perror("Error al encontrar el nodo");
     }
@@ -104,12 +104,17 @@ void set_tuple(struct Mensaje msg)
         res.codigo = -1;
     }
 
-    if (set_tuple(tree, msg.key, msg.cadena, msg.N, msg.vector) == -1)
+    if (post_node(tree, msg.key, msg.cadena, msg.N, msg.vector) == -1)
     {
-        perror("Error al introducir el nodo");
+        printf("Error al introducir el nodo");
+        res.codigo = -1;
     }
-    printf("Nodo introducido correctamente\n");
+    else
+    {
+        printf("Nodo introducido correctamente\n");
+    }
 
+    print_tree(tree, 1);
     // Abrimos la cola para mandar la respuesta
     mqd_t mq;
     mq = mq_open(msg.queue, O_WRONLY);
@@ -138,7 +143,7 @@ void modify_tuple(struct Mensaje msg)
         res.codigo = -1;
     }
 
-    if (modify_tuple(tree, msg.key, msg.cadena, msg.N, msg.vector) == -1)
+    if (patch_node(tree, msg.key, msg.cadena, msg.N, msg.vector) == -1)
     {
         perror("Error al modificar el nodo");
     }
@@ -206,7 +211,7 @@ void exist_tuple(struct Mensaje msg)
         res.codigo = -1;
     }
 
-    int result = exist_tuple(tree, msg.key);
+    int result = head_node(tree, msg.key);
 
     if (result == -1)
     {
@@ -240,6 +245,7 @@ int main(int argc, char **argv)
 
     attr.mq_maxmsg = 10;
     attr.mq_msgsize = sizeof(struct Mensaje);
+
     mq = mq_open("/tuple_sv_queue", O_CREAT | O_RDWR, 0700, &attr);
     if (mq == -1)
     {
