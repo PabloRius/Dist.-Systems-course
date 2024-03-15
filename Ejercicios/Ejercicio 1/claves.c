@@ -240,8 +240,8 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2)
     if (res.codigo >= 0)
     {
         strcpy(value1, res.cadena);
-        N_value2 = res.N;
-        memcpy(V_value2, res.vector);
+        *N_value2 = res.N;
+        memcpy(V_value2, res.vector, *N_value2 * sizeof(double));
     }
 
     // Cerrar las colas de mensajes
