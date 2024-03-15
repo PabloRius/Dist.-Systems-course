@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <mqueue.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -18,12 +19,30 @@
 #define MAX_BUFFER 10           /* tamaño del buffer */
 #define DATOS_A_PRODUCIR 100000 /* datos a producir */
 
+struct Tree *tree;
+int initialized = 0;
+
 void init(struct Mensaje msg)
 {
-    printf("Init service, response queue: %s\n", msg.queue);
+    printf("Llamada al servicio de inicialización\n");
 
     struct Respuesta res;
-    res.codigo = 1;
+    res.codigo = 0;
+    if (tree != NULL)
+    {
+        // TODO eliminar el arbol y todos sus nodos correctamente
+        free(tree);
+    }
+
+    if (init_tree(&tree) == -1)
+    {
+        perror("Error creando inicializando el árbol");
+        res.codigo = -1;
+    }
+    initialized = 1;
+    printf("Almacén del servidor incializado correctamente\n");
+
+    // Abrimos la cola para mandar la respuesta
     mqd_t mq;
     mq = mq_open(msg.queue, O_WRONLY);
     if (mq == -1)
@@ -41,27 +60,175 @@ void init(struct Mensaje msg)
 
 void get_tuple(struct Mensaje msg)
 {
-    printf("Get tuple service + %s\n", msg.cadena);
+    printf("Llamada al servicio get\n");
+
+    struct Respuesta res;
+    res.codigo = 0;
+    if (initialized != 1)
+    {
+        perror("No se ha inicializado el almacén");
+        res.codigo = -1;
+    }
+
+    if (get_node(tree, msg.key, res.cadena, res.N, res.vector) == -1)
+    {
+        perror("Error al encontrar el nodo");
+    }
+    printf("Nodo encontrado correctamente\n");
+
+    // Abrimos la cola para mandar la respuesta
+    mqd_t mq;
+    mq = mq_open(msg.queue, O_WRONLY);
+    if (mq == -1)
+    {
+        perror("mq_open");
+        exit(-1);
+    }
+    if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
+    {
+        perror("mq_send");
+        mq_close(mq);
+        exit(1);
+    }
 }
 
 void set_tuple(struct Mensaje msg)
 {
-    printf("Set tuple service + %s\n", msg.cadena);
+    printf("Llamada al servicio set\n");
+
+    struct Respuesta res;
+    res.codigo = 0;
+    if (initialized != 1)
+    {
+        perror("No se ha inicializado el almacén");
+        res.codigo = -1;
+    }
+
+    if (set_tuple(tree, msg.key, msg.cadena, msg.N, msg.vector) == -1)
+    {
+        perror("Error al introducir el nodo");
+    }
+    printf("Nodo introducido correctamente\n");
+
+    // Abrimos la cola para mandar la respuesta
+    mqd_t mq;
+    mq = mq_open(msg.queue, O_WRONLY);
+    if (mq == -1)
+    {
+        perror("mq_open");
+        exit(-1);
+    }
+    if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
+    {
+        perror("mq_send");
+        mq_close(mq);
+        exit(1);
+    }
 }
 
 void modify_tuple(struct Mensaje msg)
 {
-    printf("Modify tuple service + %s\n", msg.cadena);
+    printf("Llamada al servicio modify\n");
+
+    struct Respuesta res;
+    res.codigo = 0;
+    if (initialized != 1)
+    {
+        perror("No se ha inicializado el almacén");
+        res.codigo = -1;
+    }
+
+    if (modify_tuple(tree, msg.key, msg.cadena, msg.N, msg.vector) == -1)
+    {
+        perror("Error al modificar el nodo");
+    }
+    printf("Nodo modificado correctamente\n");
+
+    // Abrimos la cola para mandar la respuesta
+    mqd_t mq;
+    mq = mq_open(msg.queue, O_WRONLY);
+    if (mq == -1)
+    {
+        perror("mq_open");
+        exit(-1);
+    }
+    if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
+    {
+        perror("mq_send");
+        mq_close(mq);
+        exit(1);
+    }
 }
 
 void delete_tuple(struct Mensaje msg)
 {
-    printf("Delete tuple service + %s\n", msg.cadena);
+    printf("Llamada al servicio delete\n");
+
+    struct Respuesta res;
+    res.codigo = 0;
+    if (initialized != 1)
+    {
+        perror("No se ha inicializado el almacén");
+        res.codigo = -1;
+    }
+
+    if (delete_node(tree, msg.key) == -1)
+    {
+        perror("Error al eliminar el nodo");
+    }
+    printf("Nodo eliminado correctamente\n");
+
+    // Abrimos la cola para mandar la respuesta
+    mqd_t mq;
+    mq = mq_open(msg.queue, O_WRONLY);
+    if (mq == -1)
+    {
+        perror("mq_open");
+        exit(-1);
+    }
+    if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
+    {
+        perror("mq_send");
+        mq_close(mq);
+        exit(1);
+    }
 }
 
 void exist_tuple(struct Mensaje msg)
 {
-    printf("Exist tuple service + %s\n", msg.cadena);
+    printf("Llamada al servicio exist\n");
+
+    struct Respuesta res;
+    res.codigo = 0;
+    if (initialized != 1)
+    {
+        perror("No se ha inicializado el almacén");
+        res.codigo = -1;
+    }
+
+    int result = exist_tuple(tree, msg.key);
+
+    if (result == -1)
+    {
+        perror("Error al econtrar el nodo");
+    }
+    printf("Nodo encontrado correctamente\n");
+    res.codigo = result;
+
+    // Abrimos la cola para mandar la respuesta
+    mqd_t mq;
+    mq = mq_open(msg.queue, O_WRONLY);
+    if (mq == -1)
+    {
+        perror("mq_open");
+        exit(-1);
+    }
+    if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
+    {
+        perror("mq_send");
+        mq_close(mq);
+        exit(1);
+    }
 }
 
 int main(int argc, char **argv)
