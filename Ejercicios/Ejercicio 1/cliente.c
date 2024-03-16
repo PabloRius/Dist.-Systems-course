@@ -70,13 +70,13 @@ int main()
     double vector10[2] = {2.8, 2.9};
 
     // set values cadena max length
-    int key5 = 50;
+    int key5 = 150;
     char cadena11[MAX_LENGTH] = "DR5YLsjCXivUilAxJWtvpAfpIg1LCpflZp66hNIHXVNhkzRwCLcQ1Fpupt3vNvzAxqMSF1oEan1DeAs7IP6RLfjvRMFr49m1RctOhxNHHJgfHfZJ9eLIEFh9UebuclQvo5726E7h44wdRqsY9IJKsyEDhNHoXi9AIA9IBeB0g05DR41RhbNxNR4PV48gfSfScp8V5LvMOYIF56vg53pqyTCTb9RXUI3PHoBodUUyMHlrOthKhnJuYSSUgE5DEyf";
     int N11 = 3;
     double vector11[3] = {1.3, 1.4, 1.5};
 
     // set values vector tamaño maximo
-    int key6 = 250;
+    int key6 = 350;
     char cadena12[MAX_LENGTH] = "srthsdfb";
     int N12 = 32;
     double vector12[32] = {-1.5, -9.5, 4.4, 5.7, -9.1, -7.9, 4.0, -9.7, 5.0, -9.6, -2.5, -9.2, -2.1, -3.0, -0.1, 3.2, -6.7, 0.6, 3.7, -2.4, -7.2, -0.5, 4.7, -5.4, -9.5, -6.9, -8.7, -5.9, -2.9, -2.4, 5.6, -8.7};
