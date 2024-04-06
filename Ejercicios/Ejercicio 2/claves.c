@@ -1,292 +1,314 @@
 #include "claves.h"
-#include "mensaje.h"
+#include "utils.h"
 #include "comm.h"
+
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
+extern char *HOST;
+extern int PORT;
+
+#define QUEUE_NAME "/tuple_sv_queue"
+#define MAX_MSG_SIZE 256
 #define MAX_LENGTH 255
 
-#define INIT "0"
-#define GET "1"
-#define SET "2"
-#define MODIFY "3"
-#define DELETE "4"
-#define EXIST "5"
-
-#define SERVER_IP "127.0.0.1"
-#define SERVER_PORT 4200
-
+#define INIT 0
+#define GET 1
+#define SET 2
+#define MODIFY 3
+#define DELETE 4
+#define EXIST 5
 
 int init()
 {
-    int sock;
-    char buffer[1024];
-    int len = 256;
+    int sd = conn_socket(HOST, PORT);
     int ret;
+    char op;
+    int32_t res;
 
-    // Establecer conexión con el servidor.
-    sock = clientSocket(SERVER_IP, SERVER_PORT);
-    if (sock < 0) {
-        fprintf(stderr, "init: Error al crear el socket cliente\n");
+    op = INIT;
+    ret = sendMessage(sd, (char *)&op, sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío op\n");
         return -1;
     }
-
-    // Enviar comando de inicialización al servidor.
-    strcpy(buffer, "INIT");
-    ret = sendMessage(sock, buffer, strlen(buffer) + 1);
-    if (ret < 0) {
-        fprintf(stderr, "init: Error al enviar mensaje al servidor\n");
-
+    printf("Resperando respuests\n");
+    ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en recepción\n");
         return -1;
     }
+    res = ntohl(res); // unmarshalling: *r <- network to host long(res)
+    printf("Resultado del init: %d\n", res);
 
-    // Esperar respuesta del servidor.
-    memset(buffer, 0, len); // Limpiar el buffer antes de recibir el mensaje.
-    ret = recvMessage(sock, buffer, len);
-    if (ret <= 0) {
-        fprintf(stderr, "init: Error al recibir mensaje del servidor\n");
-
-        return -1;
-    }
-
-    // Interpretar respuesta. no se como has hecho la repsuesta del server, si devuelvo OK todo bien
-    if (strcmp(buffer, "OK") == 0) {
-        printf("init: Inicialización completada con éxito\n");
-
-        return 0;
-    } else {
-        fprintf(stderr, "init: Error durante la inicialización\n");
-
-        return -1;
-    }
+    closeSocket(sd);
+    return 0;
 }
 
 int set_value(int key, char *value1, int N_value2, double *V_value2)
 {
-    int sock, ret;
-    char buffer[1024];
-    int buffer_len = 1024, pos = 0;
+    int sd = conn_socket(HOST, PORT);
+    int ret;
+    char op;
+    int32_t res;
 
-    // Establecer conexión con el servidor.
-    sock = clientSocket(SERVER_IP, SERVER_PORT);
-    if (sock < 0) {
-        fprintf(stderr, "set_value: Error al crear el socket cliente\n");
+    op = SET;
+
+    ret = sendMessage(sd, (char *)&op, sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío op\n");
+        return -1;
+    }
+    int32_t key32 = htonl(key);
+    ret = sendMessage(sd, (char *)&key32, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error envío key\n");
+        return -1;
+    }
+    ret = sendMessage(sd, (char *)value1, 255 * sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío de cadena\n");
+        return -1;
+    }
+    int32_t N = htonl(N_value2);
+    ret = sendMessage(sd, (char *)&N, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error envío N\n");
+        return -1;
+    }
+    char vector_to_array[102 * N_value2];
+    datoc(V_value2, N_value2, vector_to_array);
+    ret = sendMessage(sd, (char *)vector_to_array, 102 * N_value2 * sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío de vector de doubles\n");
         return -1;
     }
 
-    // Preparar y enviar el mensaje al servidor
-    pos += snprintf(buffer + pos, buffer_len - pos, "SET %d %s %d ", key, value1, N_value2);
-    for (int i = 0; i < N_value2; ++i) {
-        pos += snprintf(buffer + pos, buffer_len - pos, "%lf ", V_value2[i]);
-    }
-
-    ret = sendMessage(sock, buffer, pos); // pos es ahora la longitud del mensaje.
-    if (ret < 0) {
-        fprintf(stderr, "set_value: Error al enviar mensaje al servidor\n");
-
+    printf("Resperando respuesta\n");
+    ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en recepción\n");
         return -1;
     }
+    res = ntohl(res);
+    printf("Resultado del set: %d\n", res);
 
-    // Esperar respuesta del servidor.
-    memset(buffer, 0, buffer_len); // Limpiar el buffer antes de recibir el mensaje.
-    ret = recvMessage(sock, buffer, buffer_len);
-    if (ret <= 0) {
-        fprintf(stderr, "set_value: Error al recibir mensaje del servidor\n");
-
-        return -1;
-    }
-
-    // Interpretar respuesta.
-    if (strcmp(buffer, "OK") == 0) {
-        printf("set_value: Tupla insertada con éxito\n");
-
-        return 0; // Éxito
-    } else {
-        fprintf(stderr, "set_value: Error al insertar tupla\n");
-        return -1; // Fallo
-    }
+    closeSocket(sd);
+    return 0;
 }
 
 int get_value(int key, char *value1, int *N_value2, double *V_value2)
 {
-    char sendBuffer[1024];
-    char recvBuffer[1024];
-    int sock, ret;
+    int sd = conn_socket(HOST, PORT);
+    int ret;
+    char op;
+    int32_t res;
 
+    op = GET;
 
-    // Establecer conexión con el servidor.
-    sock = clientSocket(SERVER_IP, SERVER_PORT);
-    if (sock < 0) {
-        fprintf(stderr, "Error al crear el socket cliente\n");
+    ret = sendMessage(sd, (char *)&op, sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío op\n");
         return -1;
     }
-
-
-    // Preparar mensaje de solicitud
-    snprintf(sendBuffer, sizeof(sendBuffer), "GET %d", key);
-    ret = sendMessage(sock, sendBuffer, strlen(sendBuffer) + 1); // +1 para incluir el terminador nulo
-    if (ret < 0) {
-        fprintf(stderr, "Error al enviar mensaje al servidor\n");
+    int32_t key32 = htonl(key);
+    ret = sendMessage(sd, (char *)&key32, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error envío key\n");
         return -1;
     }
-
-
-    // Recibir y procesar la respuesta del servidor
-    ret = recvMessage(sock, recvBuffer, sizeof(recvBuffer));
-    if (ret <= 0) {
-        fprintf(stderr, "Error al recibir mensaje del servidor\n");
+    printf("Resperando respuesta\n");
+    ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en recepción\n");
         return -1;
     }
+    res = ntohl(res);
+    printf("Resultado del get: %d\n", res);
+    if (res >= 0)
+    {
+        char cadena[255];
+        int N;
+        printf("Resperando el resto de argumentos\n");
+        ret = recvMessage(sd, (char *)cadena, 255 * sizeof(char));
+        if (ret < 0)
+        {
+            printf("Error en la recepción de la cadena\n");
 
-    // Procesar la respuesta. Suponiendo que la respuesta comienza con un código de éxito o error.
-    int codigo;
-    sscanf(recvBuffer, "%d", &codigo);
-    if (codigo != 0) { // Supongamos que 0 es éxito
-        fprintf(stderr, "Error en la respuesta del servidor\n");
-        return -1;
+            return -1;
+        }
+        ret = recvMessage(sd, (char *)&N, sizeof(int32_t));
+        if (ret < 0)
+        {
+            printf("Error en la recepción de N\n");
+
+            return -1;
+        }
+        N = ntohl(N);
+        char char_double_array[102 * N];
+        ret = recvMessage(sd, (char *)char_double_array, 102 * N * sizeof(char));
+        if (ret < 0)
+        {
+            printf("Error en la recepción del vector\n");
+
+            return -1;
+        }
+        double vector[N];
+        ctoda(vector, N, char_double_array);
+
+        printf("cadena: %s, N:%d, vector: ", cadena, N);
+        print_double_array(vector, N);
+
+        strcpy(value1, cadena);
+        *N_value2 = N;
+        memcpy(V_value2, vector, N * sizeof(double));
     }
 
-    return 0; // Éxito
+    closeSocket(sd);
+    return 0;
 }
 
 int modify_value(int key, char *value1, int N_value2, double *V_value2)
 {
-    char sendBuffer[1024];
-    char recvBuffer[1024];
-    int sock, ret;
+    int sd = conn_socket(HOST, PORT);
+    int ret;
+    char op;
+    int32_t res;
 
+    op = MODIFY;
 
-    // Establecer conexión con el servidor.
-    sock = clientSocket(SERVER_IP, SERVER_PORT);
-    if (sock < 0) {
-        fprintf(stderr, "Error al crear el socket cliente\n");
+    ret = sendMessage(sd, (char *)&op, sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío op\n");
+        return -1;
+    }
+    int32_t key32 = htonl(key);
+    ret = sendMessage(sd, (char *)&key32, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error envío key\n");
+        return -1;
+    }
+    ret = sendMessage(sd, (char *)value1, 255 * sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío de cadena\n");
+        return -1;
+    }
+    int32_t N = htonl(N_value2);
+    ret = sendMessage(sd, (char *)&N, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error envío N\n");
+        return -1;
+    }
+    char vector_to_array[102 * N_value2];
+    datoc(V_value2, N_value2, vector_to_array);
+    ret = sendMessage(sd, (char *)vector_to_array, 102 * N_value2 * sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío de vector de doubles\n");
         return -1;
     }
 
-    // Preparar mensaje de solicitud.
-    int offset = snprintf(sendBuffer, sizeof(sendBuffer), "MODIFY %d %s %d", key, value1, N_value2);
-    for (int i = 0; i < N_value2 && offset < sizeof(sendBuffer); ++i) {
-        offset += snprintf(sendBuffer + offset, sizeof(sendBuffer) - offset, " %lf", V_value2[i]);
-    }
-
-
-    ret = sendMessage(sock, sendBuffer, strlen(sendBuffer) + 1); // +1 para incluir el terminador nulo
-    if (ret < 0) {
-        fprintf(stderr, "Error al enviar mensaje al servidor\n");
+    printf("Resperando respuesta\n");
+    ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en recepción\n");
         return -1;
     }
+    res = ntohl(res);
+    printf("Resultado del modify: %d\n", res);
 
-
-    // Recibir y procesar la respuesta del servidor.
-    ret = recvMessage(sock, recvBuffer, sizeof(recvBuffer));
-    if (ret <= 0) {
-        fprintf(stderr, "Error al recibir mensaje del servidor\n");
-        return -1;
-    }
-
-
-
-    int codigo;
-    sscanf(recvBuffer, "%d", &codigo);
-    if (codigo != 0) { // Supongamos que 0 es éxito.
-        fprintf(stderr, "Error en la respuesta del servidor\n");
-        return -1;
-    }
-
-    return 0; // Éxito
+    closeSocket(sd);
+    return 0;
 }
 
 int delete_key(int key)
 {
-    char sendBuffer[1024]; // Asumiendo que este tamaño es suficiente para la solicitud
-    char recvBuffer[1024]; // Asumiendo que este tamaño es suficiente para la respuesta
-    int sock, ret;
+    int sd = conn_socket(HOST, PORT);
+    int ret;
+    char op;
+    int32_t res;
 
+    op = DELETE;
 
-    // Establecer conexión con el servidor.
-    sock = clientSocket(SERVER_IP, SERVER_PORT);
-    if (sock < 0) {
-        fprintf(stderr, "Error al crear el socket cliente\n");
+    ret = sendMessage(sd, (char *)&op, sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío op\n");
+        return -1;
+    }
+    int32_t key32 = htonl(key);
+    ret = sendMessage(sd, (char *)&key32, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error envío key\n");
         return -1;
     }
 
-
-    // Preparar mensaje de solicitud.
-    snprintf(sendBuffer, sizeof(sendBuffer), "DELETE %d", key);
-
-
-    ret = sendMessage(sock, sendBuffer, strlen(sendBuffer) + 1); // +1 para incluir el terminador nulo
-    if (ret < 0) {
-        fprintf(stderr, "Error al enviar mensaje al servidor\n");
+    printf("Resperando respuesta\n");
+    ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en recepción\n");
         return -1;
     }
+    res = ntohl(res);
+    printf("Resultado del delete: %d\n", res);
 
-
-    // Recibir y procesar la respuesta del servidor.
-    ret = recvMessage(sock, recvBuffer, sizeof(recvBuffer));
-    if (ret <= 0) {
-        fprintf(stderr, "Error al recibir mensaje del servidor\n");
-        return -1;
-    }
-
-
-    // Procesar la respuesta. Supongamos que la respuesta es un simple código de éxito/error.
-    int codigo;
-    sscanf(recvBuffer, "%d", &codigo);
-    if (codigo != 0) { // Suponiendo que 0 es éxito.
-        fprintf(stderr, "Error en la respuesta del servidor\n");
-        return -1;
-    }
-
-    return 0; // Éxito
+    closeSocket(sd);
+    return 0;
 }
-
 
 int exist(int key)
 {
-    char sendBuffer[1024];
-    char recvBuffer[1024];
-    int sock, ret;
+    int sd = conn_socket(HOST, PORT);
+    int ret;
+    char op;
+    int32_t res;
 
+    op = EXIST;
 
-    // Establecer conexión con el servidor.
-    sock = clientSocket(SERVER_IP, SERVER_PORT);
-    if (sock < 0) {
-        fprintf(stderr, "Error al crear el socket cliente\n");
+    ret = sendMessage(sd, (char *)&op, sizeof(char));
+    if (ret == -1)
+    {
+        printf("Error envío op\n");
+        return -1;
+    }
+    int32_t key32 = htonl(key);
+    ret = sendMessage(sd, (char *)&key32, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error envío key\n");
         return -1;
     }
 
-
-    // Preparar mensaje de solicitud. Formato esperado:
-    snprintf(sendBuffer, sizeof(sendBuffer), "EXIST %d", key);
-
-    ret = sendMessage(sock, sendBuffer, strlen(sendBuffer) + 1); // +1 para incluir el terminador nulo
-    if (ret < 0) {
-        fprintf(stderr, "Error al enviar mensaje al servidor\n");
+    printf("Resperando respuesta\n");
+    ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en recepción\n");
         return -1;
     }
+    res = ntohl(res);
+    printf("Resultado del exist: %d\n", res);
 
-
-    // Recibir y procesar la respuesta del servidor.
-    ret = recvMessage(sock, recvBuffer, sizeof(recvBuffer));
-    if (ret <= 0) {
-        fprintf(stderr, "Error al recibir mensaje del servidor\n");
-        return -1;
-    }
-
-
-    // Procesar la respuesta.
-    int existe;
-    sscanf(recvBuffer, "%d", &existe);
-
-
-
-    if (existe == 1) {
-        return 1; // La tupla existe
-    } else if (existe == 0) {
-        return 0; // La tupla no existe
-    } else {
-        fprintf(stderr, "Error en la respuesta del servidor\n");
-        return -1; // Error en la operación
-    }
+    closeSocket(sd);
+    return 0;
 }
