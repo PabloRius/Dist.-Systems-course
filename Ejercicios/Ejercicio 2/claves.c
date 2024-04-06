@@ -1,18 +1,9 @@
 #include "claves.h"
 #include "mensaje.h"
-#include "utils.h"
-
-#include <stdlib.h>
+#include "comm.h"
 #include <stdio.h>
-#include <mqueue.h>
-#include <errno.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <fcntl.h>
 
-#define QUEUE_NAME "/tuple_sv_queue"
-#define MAX_MSG_SIZE 256
 #define MAX_LENGTH 255
 
 #define INIT "0"
@@ -22,453 +13,280 @@
 #define DELETE "4"
 #define EXIST "5"
 
-mqd_t mq;
+#define SERVER_IP "127.0.0.1"
+#define SERVER_PORT 4200
+
 
 int init()
 {
-    // Inicializar la colas de mensajes
-    mqd_t mq_msg;
-    mqd_t mq_res;
+    int sock;
+    char buffer[1024];
+    int len = 256;
+    int ret;
 
-    // Definir la cola para la respuesta del servidor
-    // Nombre
-    char queue_name[MAX_LENGTH];
-    sprintf(queue_name, "/Cola-%d", getpid());
-
-    // Atributos
-    struct mq_attr attr;
-    attr.mq_maxmsg = 1;
-    attr.mq_msgsize = sizeof(struct Respuesta);
-
-    // Abrir las colas
-    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
-    if (mq_res == -1)
-    { // Controlar errores al abrir las colas
-        perror("Error al crear la cola de respuesta");
-        exit(1);
-    }
-    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
-    if (mq_msg == -1)
-    { // Controlar errores al abrir las colas
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        perror("Error al abrir la cola del servidor");
-        exit(1);
+    // Establecer conexión con el servidor.
+    sock = clientSocket(SERVER_IP, SERVER_PORT);
+    if (sock < 0) {
+        fprintf(stderr, "init: Error al crear el socket cliente\n");
+        return -1;
     }
 
-    // Producir dato
-    struct Mensaje msg;
+    // Enviar comando de inicialización al servidor.
+    strcpy(buffer, "INIT");
+    ret = sendMessage(sock, buffer, strlen(buffer) + 1);
+    if (ret < 0) {
+        fprintf(stderr, "init: Error al enviar mensaje al servidor\n");
 
-    strcpy(msg.op, INIT);          // Clave de operación
-    strcpy(msg.queue, queue_name); // Nombre de la cola de respuesta
-
-    // Enviar mensaje producido
-    printf("Enviando mensaje\n");
-
-    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
-    {
-        perror("Error al mandar el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+        return -1;
     }
 
-    // Leer respuesta del servidor
-    struct Respuesta res;
+    // Esperar respuesta del servidor.
+    memset(buffer, 0, len); // Limpiar el buffer antes de recibir el mensaje.
+    ret = recvMessage(sock, buffer, len);
+    if (ret <= 0) {
+        fprintf(stderr, "init: Error al recibir mensaje del servidor\n");
 
-    printf("Esperando respuesta del servidor\n");
-    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
-    {
-        perror("Error al recibir el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+        return -1;
     }
-    printf("Respuesta: %d\n", res.codigo);
 
-    // Cerrar las colas de mensajes
-    mq_close(mq_msg);
-    mq_close(mq_res);
-    mq_unlink(queue_name);
-    return res.codigo;
+    // Interpretar respuesta. no se como has hecho la repsuesta del server, si devuelvo OK todo bien
+    if (strcmp(buffer, "OK") == 0) {
+        printf("init: Inicialización completada con éxito\n");
+
+        return 0;
+    } else {
+        fprintf(stderr, "init: Error durante la inicialización\n");
+
+        return -1;
+    }
 }
 
 int set_value(int key, char *value1, int N_value2, double *V_value2)
 {
+    int sock, ret;
+    char buffer[1024];
+    int buffer_len = 1024, pos = 0;
 
-    // Inicializar la colas de mensajes
-    mqd_t mq_msg;
-    mqd_t mq_res;
-
-    // Definir la cola para la respuesta del servidor
-    // Nombre
-    char queue_name[MAX_LENGTH];
-    sprintf(queue_name, "/Cola-%d", getpid());
-
-    // Atributos
-    struct mq_attr attr;
-    attr.mq_maxmsg = 1;
-    attr.mq_msgsize = sizeof(struct Respuesta);
-
-    // Abrir las colas
-    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
-    if (mq_res == -1)
-    { // Controlar errores al abrir las colas
-        perror("Error al crear la cola de respuesta");
-        exit(1);
-    }
-    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
-    if (mq_msg == -1)
-    { // Controlar errores al abrir las colas
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        perror("Error al abrir la cola del servidor");
-        exit(1);
+    // Establecer conexión con el servidor.
+    sock = clientSocket(SERVER_IP, SERVER_PORT);
+    if (sock < 0) {
+        fprintf(stderr, "set_value: Error al crear el socket cliente\n");
+        return -1;
     }
 
-    // Producir dato
-    struct Mensaje msg;
-
-    strcpy(msg.op, SET);                                     // Clave de operación
-    msg.key = key;                                           // Key
-    strcpy(msg.cadena, value1);                              // Cadena
-    msg.N = N_value2;                                        // N
-    memcpy(msg.vector, V_value2, N_value2 * sizeof(double)); // Vector de doubles
-    strcpy(msg.queue, queue_name);                           // Nombre de la cola de respuesta
-
-    // Enviar mensaje producido
-    printf("Enviando mensaje\n");
-
-    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
-    {
-        perror("Error al mandar el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+    // Preparar y enviar el mensaje al servidor
+    pos += snprintf(buffer + pos, buffer_len - pos, "SET %d %s %d ", key, value1, N_value2);
+    for (int i = 0; i < N_value2; ++i) {
+        pos += snprintf(buffer + pos, buffer_len - pos, "%lf ", V_value2[i]);
     }
 
-    // Leer respuesta del servidor
-    struct Respuesta res;
+    ret = sendMessage(sock, buffer, pos); // pos es ahora la longitud del mensaje.
+    if (ret < 0) {
+        fprintf(stderr, "set_value: Error al enviar mensaje al servidor\n");
 
-    printf("Esperando respuesta del servidor\n");
-    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
-    {
-        perror("Error al recibir el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+        return -1;
     }
-    printf("Respuesta: %d\n", res.codigo);
 
-    // Cerrar las colas de mensajes
-    mq_close(mq_msg);
-    mq_close(mq_res);
-    mq_unlink(queue_name);
-    return res.codigo;
+    // Esperar respuesta del servidor.
+    memset(buffer, 0, buffer_len); // Limpiar el buffer antes de recibir el mensaje.
+    ret = recvMessage(sock, buffer, buffer_len);
+    if (ret <= 0) {
+        fprintf(stderr, "set_value: Error al recibir mensaje del servidor\n");
+
+        return -1;
+    }
+
+    // Interpretar respuesta.
+    if (strcmp(buffer, "OK") == 0) {
+        printf("set_value: Tupla insertada con éxito\n");
+
+        return 0; // Éxito
+    } else {
+        fprintf(stderr, "set_value: Error al insertar tupla\n");
+        return -1; // Fallo
+    }
 }
 
 int get_value(int key, char *value1, int *N_value2, double *V_value2)
 {
+    char sendBuffer[1024];
+    char recvBuffer[1024];
+    int sock, ret;
 
-    // Inicializar la colas de mensajes
-    mqd_t mq_msg;
-    mqd_t mq_res;
 
-    // Definir la cola para la respuesta del servidor
-    // Nombre
-    char queue_name[MAX_LENGTH];
-    sprintf(queue_name, "/Cola-%d", getpid());
-
-    // Atributos
-    struct mq_attr attr;
-    attr.mq_maxmsg = 1;
-    attr.mq_msgsize = sizeof(struct Respuesta);
-
-    // Abrir las colas
-    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
-    if (mq_res == -1)
-    { // Controlar errores al abrir las colas
-        perror("Error al crear la cola de respuesta");
-        exit(1);
-    }
-    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
-    if (mq_msg == -1)
-    { // Controlar errores al abrir las colas
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        perror("Error al abrir la cola del servidor");
-        exit(1);
+    // Establecer conexión con el servidor.
+    sock = clientSocket(SERVER_IP, SERVER_PORT);
+    if (sock < 0) {
+        fprintf(stderr, "Error al crear el socket cliente\n");
+        return -1;
     }
 
-    // Producir dato
-    struct Mensaje msg;
 
-    strcpy(msg.op, GET);           // Clave de operación
-    msg.key = key;                 // Key
-    strcpy(msg.queue, queue_name); // Nombre de la cola de respuesta
-
-    // Enviar mensaje producido
-    printf("Enviando mensaje\n");
-
-    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
-    {
-        perror("Error al mandar el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+    // Preparar mensaje de solicitud
+    snprintf(sendBuffer, sizeof(sendBuffer), "GET %d", key);
+    ret = sendMessage(sock, sendBuffer, strlen(sendBuffer) + 1); // +1 para incluir el terminador nulo
+    if (ret < 0) {
+        fprintf(stderr, "Error al enviar mensaje al servidor\n");
+        return -1;
     }
 
-    // Leer respuesta del servidor
-    struct Respuesta res;
 
-    printf("Esperando respuesta del servidor\n");
-    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
-    {
-        perror("Error al recibir el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
-    }
-    printf("Respuesta: %d\n", res.codigo);
-    // Devolver los datos recuperados a los punteros del cliente
-    if (res.codigo >= 0)
-    {
-        strcpy(value1, res.cadena);
-        *N_value2 = res.N;
-        memcpy(V_value2, res.vector, *N_value2 * sizeof(double));
+    // Recibir y procesar la respuesta del servidor
+    ret = recvMessage(sock, recvBuffer, sizeof(recvBuffer));
+    if (ret <= 0) {
+        fprintf(stderr, "Error al recibir mensaje del servidor\n");
+        return -1;
     }
 
-    // Cerrar las colas de mensajes
-    mq_close(mq_msg);
-    mq_close(mq_res);
-    mq_unlink(queue_name);
-    return res.codigo;
+    // Procesar la respuesta. Suponiendo que la respuesta comienza con un código de éxito o error.
+    int codigo;
+    sscanf(recvBuffer, "%d", &codigo);
+    if (codigo != 0) { // Supongamos que 0 es éxito
+        fprintf(stderr, "Error en la respuesta del servidor\n");
+        return -1;
+    }
+
+    return 0; // Éxito
 }
 
 int modify_value(int key, char *value1, int N_value2, double *V_value2)
 {
+    char sendBuffer[1024];
+    char recvBuffer[1024];
+    int sock, ret;
 
-    // Inicializar la colas de mensajes
-    mqd_t mq_msg;
-    mqd_t mq_res;
 
-    // Definir la cola para la respuesta del servidor
-    // Nombre
-    char queue_name[MAX_LENGTH];
-    sprintf(queue_name, "/Cola-%d", getpid());
-
-    // Atributos
-    struct mq_attr attr;
-    attr.mq_maxmsg = 1;
-    attr.mq_msgsize = sizeof(struct Respuesta);
-
-    // Abrir las colas
-    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
-    if (mq_res == -1)
-    { // Controlar errores al abrir las colas
-        perror("Error al crear la cola de respuesta");
-        exit(1);
-    }
-    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
-    if (mq_msg == -1)
-    { // Controlar errores al abrir las colas
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        perror("Error al abrir la cola del servidor");
-        exit(1);
+    // Establecer conexión con el servidor.
+    sock = clientSocket(SERVER_IP, SERVER_PORT);
+    if (sock < 0) {
+        fprintf(stderr, "Error al crear el socket cliente\n");
+        return -1;
     }
 
-    // Producir dato
-    struct Mensaje msg;
-
-    strcpy(msg.op, MODIFY);                                  // Clave de operación
-    msg.key = key;                                           // Key
-    strcpy(msg.cadena, value1);                              // Cadena
-    msg.N = N_value2;                                        // N
-    memcpy(msg.vector, V_value2, N_value2 * sizeof(double)); // Vector de doubles
-    strcpy(msg.queue, queue_name);                           // Nombre de la cola de respuesta
-
-    // Enviar mensaje producido
-    printf("Enviando mensaje\n");
-
-    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
-    {
-        perror("Error al mandar el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+    // Preparar mensaje de solicitud.
+    int offset = snprintf(sendBuffer, sizeof(sendBuffer), "MODIFY %d %s %d", key, value1, N_value2);
+    for (int i = 0; i < N_value2 && offset < sizeof(sendBuffer); ++i) {
+        offset += snprintf(sendBuffer + offset, sizeof(sendBuffer) - offset, " %lf", V_value2[i]);
     }
 
-    // Leer respuesta del servidor
-    struct Respuesta res;
 
-    printf("Esperando respuesta del servidor\n");
-    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
-    {
-        perror("Error al recibir el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+    ret = sendMessage(sock, sendBuffer, strlen(sendBuffer) + 1); // +1 para incluir el terminador nulo
+    if (ret < 0) {
+        fprintf(stderr, "Error al enviar mensaje al servidor\n");
+        return -1;
     }
-    printf("Respuesta: %d\n", res.codigo);
 
-    // Cerrar las colas de mensajes
-    mq_close(mq_msg);
-    mq_close(mq_res);
-    mq_unlink(queue_name);
-    return res.codigo;
+
+    // Recibir y procesar la respuesta del servidor.
+    ret = recvMessage(sock, recvBuffer, sizeof(recvBuffer));
+    if (ret <= 0) {
+        fprintf(stderr, "Error al recibir mensaje del servidor\n");
+        return -1;
+    }
+
+
+
+    int codigo;
+    sscanf(recvBuffer, "%d", &codigo);
+    if (codigo != 0) { // Supongamos que 0 es éxito.
+        fprintf(stderr, "Error en la respuesta del servidor\n");
+        return -1;
+    }
+
+    return 0; // Éxito
 }
 
 int delete_key(int key)
 {
+    char sendBuffer[1024]; // Asumiendo que este tamaño es suficiente para la solicitud
+    char recvBuffer[1024]; // Asumiendo que este tamaño es suficiente para la respuesta
+    int sock, ret;
 
-    // Inicializar la colas de mensajes
-    mqd_t mq_msg;
-    mqd_t mq_res;
 
-    // Definir la cola para la respuesta del servidor
-    // Nombre
-    char queue_name[MAX_LENGTH];
-    sprintf(queue_name, "/Cola-%d", getpid());
-
-    // Atributos
-    struct mq_attr attr;
-    attr.mq_maxmsg = 1;
-    attr.mq_msgsize = sizeof(struct Respuesta);
-
-    // Abrir las colas
-    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
-    if (mq_res == -1)
-    { // Controlar errores al abrir las colas
-        perror("Error al crear la cola de respuesta");
-        exit(1);
-    }
-    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
-    if (mq_msg == -1)
-    { // Controlar errores al abrir las colas
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        perror("Error al abrir la cola del servidor");
-        exit(1);
+    // Establecer conexión con el servidor.
+    sock = clientSocket(SERVER_IP, SERVER_PORT);
+    if (sock < 0) {
+        fprintf(stderr, "Error al crear el socket cliente\n");
+        return -1;
     }
 
-    // Producir dato
-    struct Mensaje msg;
 
-    strcpy(msg.op, DELETE);        // Clave de operación
-    msg.key = key;                 // Key
-    strcpy(msg.queue, queue_name); // Nombre de la cola de respuesta
+    // Preparar mensaje de solicitud.
+    snprintf(sendBuffer, sizeof(sendBuffer), "DELETE %d", key);
 
-    // Enviar mensaje producido
-    printf("Enviando mensaje\n");
 
-    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
-    {
-        perror("Error al mandar el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+    ret = sendMessage(sock, sendBuffer, strlen(sendBuffer) + 1); // +1 para incluir el terminador nulo
+    if (ret < 0) {
+        fprintf(stderr, "Error al enviar mensaje al servidor\n");
+        return -1;
     }
 
-    // Leer respuesta del servidor
-    struct Respuesta res;
 
-    printf("Esperando respuesta del servidor\n");
-    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
-    {
-        perror("Error al recibir el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+    // Recibir y procesar la respuesta del servidor.
+    ret = recvMessage(sock, recvBuffer, sizeof(recvBuffer));
+    if (ret <= 0) {
+        fprintf(stderr, "Error al recibir mensaje del servidor\n");
+        return -1;
     }
-    printf("Respuesta: %d\n", res.codigo);
 
-    // Cerrar las colas de mensajes
-    mq_close(mq_msg);
-    mq_close(mq_res);
-    mq_unlink(queue_name);
-    return res.codigo;
+
+    // Procesar la respuesta. Supongamos que la respuesta es un simple código de éxito/error.
+    int codigo;
+    sscanf(recvBuffer, "%d", &codigo);
+    if (codigo != 0) { // Suponiendo que 0 es éxito.
+        fprintf(stderr, "Error en la respuesta del servidor\n");
+        return -1;
+    }
+
+    return 0; // Éxito
 }
+
 
 int exist(int key)
 {
+    char sendBuffer[256]; // Asumiendo que este tamaño es suficiente para la solicitud
+    char recvBuffer[256]; // Asumiendo que este tamaño es suficiente para la respuesta
+    int sock, ret;
 
-    // Inicializar la colas de mensajes
-    mqd_t mq_msg;
-    mqd_t mq_res;
 
-    // Definir la cola para la respuesta del servidor
-    // Nombre
-    char queue_name[MAX_LENGTH];
-    sprintf(queue_name, "/Cola-%d", getpid());
-
-    // Atributos
-    struct mq_attr attr;
-    attr.mq_maxmsg = 1;
-    attr.mq_msgsize = sizeof(struct Respuesta);
-
-    // Abrir las colas
-    mq_res = mq_open(queue_name, O_CREAT | O_RDONLY, 0700, &attr);
-    if (mq_res == -1)
-    { // Controlar errores al abrir las colas
-        perror("Error al crear la cola de respuesta");
-        exit(1);
-    }
-    mq_msg = mq_open(QUEUE_NAME, O_WRONLY);
-    if (mq_msg == -1)
-    { // Controlar errores al abrir las colas
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        perror("Error al abrir la cola del servidor");
-        exit(1);
+    // Establecer conexión con el servidor.
+    sock = clientSocket(SERVER_IP, SERVER_PORT);
+    if (sock < 0) {
+        fprintf(stderr, "Error al crear el socket cliente\n");
+        return -1;
     }
 
-    // Producir dato
-    struct Mensaje msg;
 
-    strcpy(msg.op, EXIST);         // Clave de operación
-    msg.key = key;                 // Key
-    strcpy(msg.queue, queue_name); // Nombre de la cola de respuesta
+    // Preparar mensaje de solicitud. Formato esperado: "E key", donde "E" indica operación exist
+    snprintf(sendBuffer, sizeof(sendBuffer), "E %d", key);
 
-    // Enviar mensaje producido
-    printf("Enviando mensaje\n");
-
-    if (mq_send(mq_msg, (const char *)&msg, sizeof(msg), 0) < 0)
-    {
-        perror("Error al mandar el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+    ret = sendMessage(sock, sendBuffer, strlen(sendBuffer) + 1); // +1 para incluir el terminador nulo
+    if (ret < 0) {
+        fprintf(stderr, "Error al enviar mensaje al servidor\n");
+        return -1;
     }
 
-    // Leer respuesta del servidor
-    struct Respuesta res;
 
-    printf("Esperando respuesta del servidor\n");
-    if (mq_receive(mq_res, (char *)&res, sizeof(res), 0) == -1)
-    {
-        perror("Error al recibir el mensaje");
-        mq_close(mq_msg);
-        mq_close(mq_res);
-        mq_unlink(queue_name);
-        exit(1);
+    // Recibir y procesar la respuesta del servidor.
+    ret = recvMessage(sock, recvBuffer, sizeof(recvBuffer));
+    if (ret <= 0) {
+        fprintf(stderr, "Error al recibir mensaje del servidor\n");
+        return -1;
     }
-    printf("Respuesta: %d\n", res.codigo);
 
-    // Cerrar las colas de mensajes
-    mq_close(mq_msg);
-    mq_close(mq_res);
-    mq_unlink(queue_name);
-    return res.codigo;
+
+    // Procesar la respuesta.
+    int existe;
+    sscanf(recvBuffer, "%d", &existe);
+
+
+
+    if (existe == 1) {
+        return 1; // La tupla existe
+    } else if (existe == 0) {
+        return 0; // La tupla no existe
+    } else {
+        fprintf(stderr, "Error en la respuesta del servidor\n");
+        return -1; // Error en la operación
+    }
 }
