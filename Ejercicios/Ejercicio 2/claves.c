@@ -10,10 +10,6 @@
 extern char *HOST;
 extern int PORT;
 
-#define QUEUE_NAME "/tuple_sv_queue"
-#define MAX_MSG_SIZE 256
-#define MAX_LENGTH 255
-
 #define INIT 0
 #define GET 1
 #define SET 2
