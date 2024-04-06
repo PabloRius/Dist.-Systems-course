@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <mqueue.h>
+#include <strings.h>
+#include <unistd.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <pthread.h>
@@ -10,6 +12,7 @@
 #include "ABB.h"
 #include "utils.h"
 #include "mensaje.h"
+#include "comm.h"
 
 #define INIT 0
 #define GET 1
@@ -32,19 +35,21 @@ pthread_mutex_t mutex_abb;
 struct Tree *tree;
 int initialized = 0;
 
-void init(void *msg)
+void init(void *arg)
 {
     printf("Serivicio init\n");
 
-    // Definir el mensaje de respuesta
-    struct Respuesta res;
-    res.codigo = 0;
+    // Inicializamos la respuesta
+    int ret;
+    int32_t res = 0;
+
+    // Inicializamos el socket local para el hilo
+    int s_local;
 
     // Bloqueamos el lock para guardar el mensaje
     pthread_mutex_lock(&mutex_mensaje);
-    // Copiamos el mensaje
-    struct Mensaje mensaje;
-    mensaje = (*(struct Mensaje *)msg);
+
+    s_local = (*(int *)arg);
 
     mensaje_no_copiado = false;
     // Despertamos al hilo principal
@@ -55,7 +60,6 @@ void init(void *msg)
     // Comprobar que la estructura de datos no está poblada / reiniciarla
     if (tree != NULL)
     {
-        // TODO eliminar el arbol y todos sus nodos correctamente
         pthread_mutex_lock(&mutex_abb);
         free(tree);
         pthread_mutex_unlock(&mutex_abb);
@@ -66,50 +70,46 @@ void init(void *msg)
     if (init_tree(&tree) == -1)
     {
         printf("Error creando inicializando el árbol\n");
-        res.codigo = -1;
+        res = -1;
     }
     else
     {
         initialized = 1;
+        printf("Árbol inicializado\n");
     }
     pthread_mutex_unlock(&mutex_abb);
 
-    // Abrir la cola del cliente para mandar la respuesta
-    mqd_t mq;
-    mq = mq_open(mensaje.queue, O_WRONLY);
-    if (mq == -1)
+    res = htonl(res);
+
+    ret = sendMessage(s_local, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
     {
-        perror("Error al abrir la cola del cliente");
+        printf("Error en el envío\n");
+
+        close(s_local);
+        pthread_exit(NULL);
         exit(-1);
     }
-    else
-    {
-        // Mandar la respuesta por la cola
-        if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
-        {
-            perror("Error al mandar el mensaje de respuesta");
-            mq_close(mq);
-            exit(1);
-        }
-
-        // Cerrar la conexion con la cola
-        mq_close(mq);
-    }
+    close(s_local);
+    pthread_exit(NULL);
+    exit(-1);
 }
 
-void get_tuple(void *msg)
+void get_tuple(void *arg)
 {
-    printf("Servicio get\n");
+    printf("Serivicio get\n");
 
-    // Definir el mensaje de respuesta
-    struct Respuesta res;
-    res.codigo = 0;
+    // Inicializamos la respuesta
+    int ret;
+    int32_t res = 0;
+
+    // Inicializamos el socket local para el hilo
+    int s_local;
 
     // Bloqueamos el lock para guardar el mensaje
     pthread_mutex_lock(&mutex_mensaje);
-    // Copiamos el mensaje
-    struct Mensaje mensaje;
-    mensaje = (*(struct Mensaje *)msg);
+
+    s_local = (*(int *)arg);
 
     mensaje_no_copiado = false;
     // Despertamos al hilo principal
@@ -117,55 +117,119 @@ void get_tuple(void *msg)
     // Desbloqueamos el lock
     pthread_mutex_unlock(&mutex_mensaje);
 
-    // Abrir la cola del cliente para mandar la respuesta
-    mqd_t mq;
-    mq = mq_open(mensaje.queue, O_WRONLY);
-    if (mq == -1)
+    // Comprobar que la estructura de datos está poblada
+    if (initialized == 0)
     {
-        perror("Error al abrir la cola del cliente");
+        close(s_local);
+        pthread_exit(NULL);
         exit(-1);
+    }
+
+    // Recibimos la key en el siguiente mensaje por el socket
+    int32_t key;
+    char new_cadena[255];
+    int32_t new_N;
+    double new_vector[32];
+
+    ret = recvMessage(s_local, (char *)&key, sizeof(int32_t));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de la clave\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    key = ntohl(key);
+
+    // Buscamos el nodo con la clave recibida
+    pthread_mutex_lock(&mutex_abb);
+    if (get_node(tree, key, new_cadena, &new_N, new_vector) == -1)
+    {
+        printf("Error buscando el nodo: %d\n", key);
+        res = -1;
     }
     else
     {
-        // Comprobar que la estructura de datos está inicializada
-        pthread_mutex_lock(&mutex_abb);
-        if (initialized == 1)
-        {
-            // Realizar la operación
-            get_node(tree, mensaje.key, res.cadena, &res.N, res.vector);
-        }
-        else
-        {
-            res.codigo = -1;
-        }
-        pthread_mutex_unlock(&mutex_abb);
-
-        // Mandar la respuesta por la cola
-        if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
-        {
-            perror("Error al mandar el mensaje de respuesta");
-            mq_close(mq);
-            exit(1);
-        }
-
-        // Cerrar la conexion con la cola
-        mq_close(mq);
+        printf("Nodo encontrado\n");
     }
+    pthread_mutex_unlock(&mutex_abb);
+    if (res == -1)
+    {
+        res = htonl(res);
+        ret = sendMessage(s_local, (char *)&res, sizeof(int32_t));
+        if (ret == -1)
+        {
+            printf("Error en el envío\n");
+
+            close(s_local);
+            pthread_exit(NULL);
+            exit(-1);
+        }
+    }
+    else
+    {
+        res = htonl(res);
+        ret = sendMessage(s_local, (char *)&res, sizeof(int32_t));
+        if (ret == -1)
+        {
+            printf("Error en el envío\n");
+
+            close(s_local);
+            pthread_exit(NULL);
+            exit(-1);
+        }
+        ret = sendMessage(s_local, (char *)new_cadena, 255 * sizeof(char));
+        if (ret == -1)
+        {
+            printf("Error en el envío\n");
+
+            close(s_local);
+            pthread_exit(NULL);
+            exit(-1);
+        }
+        int32_t N = htonl(new_N);
+        ret = sendMessage(s_local, (char *)&N, sizeof(int32_t));
+        if (ret == -1)
+        {
+            printf("Error en el envío\n");
+
+            close(s_local);
+            pthread_exit(NULL);
+            exit(-1);
+        }
+        char vector_to_array[102 * new_N];
+        datoc(new_vector, new_N, vector_to_array);
+        ret = sendMessage(s_local, (char *)vector_to_array, 102 * new_N * sizeof(char));
+        if (ret == -1)
+        {
+            printf("Error en el envío\n");
+
+            close(s_local);
+            pthread_exit(NULL);
+            exit(-1);
+        }
+    }
+    close(s_local);
+    pthread_exit(NULL);
+    exit(-1);
 }
 
-void set_tuple(void *msg)
+void set_tuple(void *arg)
 {
-    printf("Servicio set\n");
+    printf("Serivicio set\n");
 
-    // Definir el mensaje de respuesta
-    struct Respuesta res;
-    res.codigo = 0;
+    // Inicializamos la respuesta
+    int ret;
+    int32_t res = 0;
+
+    // Inicializamos el socket local para el hilo
+    int s_local;
 
     // Bloqueamos el lock para guardar el mensaje
     pthread_mutex_lock(&mutex_mensaje);
-    // Copiamos el mensaje
-    struct Mensaje mensaje;
-    mensaje = (*(struct Mensaje *)msg);
+
+    s_local = (*(int *)arg);
 
     mensaje_no_copiado = false;
     // Despertamos al hilo principal
@@ -173,59 +237,106 @@ void set_tuple(void *msg)
     // Desbloqueamos el lock
     pthread_mutex_unlock(&mutex_mensaje);
 
-    // Abrir la cola del cliente para mandar la respuesta
-    mqd_t mq;
-    mq = mq_open(mensaje.queue, O_WRONLY);
-    if (mq == -1)
+    // Comprobar que la estructura de datos está poblada
+    if (initialized == 0)
     {
-        perror("Error al abrir la cola del cliente");
+        close(s_local);
+        pthread_exit(NULL);
         exit(-1);
+    }
+
+    // Recibimos la key en el siguiente mensaje por el socket
+    int32_t key;
+    char cadena[255];
+    int32_t N;
+
+    ret = recvMessage(s_local, (char *)&key, sizeof(int32_t));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de la clave\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    key = ntohl(key);
+    ret = recvMessage(s_local, (char *)cadena, 255 * sizeof(char));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de la cadena\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    ret = recvMessage(s_local, (char *)&N, sizeof(int32_t));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de N\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    N = ntohl(N);
+    char char_double_array[102 * N];
+    ret = recvMessage(s_local, (char *)char_double_array, 102 * N * sizeof(char));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de la cadena\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    double vector[N];
+    ctoda(vector, N, char_double_array);
+
+    // Introducimos el nodo con la clave recibida
+    pthread_mutex_lock(&mutex_abb);
+    if (post_node(tree, key, cadena, N, vector) == -1)
+    {
+        printf("Error introduciendo el nodo: %d\n", key);
+        res = -1;
     }
     else
     {
-        // Comprobar que la estructura de datos está inicializada
-        pthread_mutex_lock(&mutex_abb);
-        if (initialized == 1)
-        {
-            // Realizar la operación
-            if (post_node(tree, mensaje.key, mensaje.cadena, mensaje.N, mensaje.vector) == -1)
-            {
-                res.codigo = -1;
-            }
-            print_tree(tree, 1);
-        }
-        else
-        {
-            res.codigo = -1;
-        }
-        pthread_mutex_unlock(&mutex_abb);
-
-        // Mandar la respuesta por la cola
-        if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
-        {
-            perror("Error al mandar el mensaje de respuesta");
-            mq_close(mq);
-            exit(1);
-        }
-
-        // Cerrar la conexion con la cola
-        mq_close(mq);
+        printf("Nodo introducido\n");
+        print_tree(tree, 1);
     }
+    pthread_mutex_unlock(&mutex_abb);
+
+    res = htonl(res);
+    ret = sendMessage(s_local, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en el envío\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+
+    close(s_local);
+    pthread_exit(NULL);
+    exit(-1);
 }
 
-void modify_tuple(void *msg)
+void modify_tuple(void *arg)
 {
-    printf("Servicio modify\n");
+    printf("Serivicio modify\n");
 
-    // Definir el mensaje de respuesta
-    struct Respuesta res;
-    res.codigo = 0;
+    // Inicializamos la respuesta
+    int ret;
+    int32_t res = 0;
+
+    // Inicializamos el socket local para el hilo
+    int s_local;
 
     // Bloqueamos el lock para guardar el mensaje
     pthread_mutex_lock(&mutex_mensaje);
-    // Copiamos el mensaje
-    struct Mensaje mensaje;
-    mensaje = (*(struct Mensaje *)msg);
+
+    s_local = (*(int *)arg);
 
     mensaje_no_copiado = false;
     // Despertamos al hilo principal
@@ -233,59 +344,106 @@ void modify_tuple(void *msg)
     // Desbloqueamos el lock
     pthread_mutex_unlock(&mutex_mensaje);
 
-    // Abrir la cola del cliente para mandar la respuesta
-    mqd_t mq;
-    mq = mq_open(mensaje.queue, O_WRONLY);
-    if (mq == -1)
+    // Comprobar que la estructura de datos está poblada
+    if (initialized == 0)
     {
-        perror("Error al abrir la cola del cliente");
+        close(s_local);
+        pthread_exit(NULL);
         exit(-1);
+    }
+
+    // Recibimos la key en el siguiente mensaje por el socket
+    int32_t key;
+    char cadena[255];
+    int32_t N;
+
+    ret = recvMessage(s_local, (char *)&key, sizeof(int32_t));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de la clave\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    key = ntohl(key);
+    ret = recvMessage(s_local, (char *)cadena, 255 * sizeof(char));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de la cadena\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    ret = recvMessage(s_local, (char *)&N, sizeof(int32_t));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de N\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    N = ntohl(N);
+    char char_double_array[102 * N];
+    ret = recvMessage(s_local, (char *)char_double_array, 102 * N * sizeof(char));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de la cadena\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    double vector[N];
+    ctoda(vector, N, char_double_array);
+
+    // Modifcamos el nodo con la clave recibida
+    pthread_mutex_lock(&mutex_abb);
+    if (patch_node(tree, key, cadena, N, vector) == -1)
+    {
+        printf("Error modificando el nodo: %d\n", key);
+        res = -1;
     }
     else
     {
-        // Comprobar que la estructura de datos está inicializada
-        pthread_mutex_lock(&mutex_abb);
-        if (initialized == 1)
-        {
-            // Realizar la operación
-            if (patch_node(tree, mensaje.key, mensaje.cadena, mensaje.N, mensaje.vector) == -1)
-            {
-                res.codigo = -1;
-            }
-            print_tree(tree, 1);
-        }
-        else
-        {
-            res.codigo = -1;
-        }
-        pthread_mutex_unlock(&mutex_abb);
-
-        // Mandar la respuesta por la cola
-        if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
-        {
-            perror("Error al mandar el mensaje de respuesta");
-            mq_close(mq);
-            exit(1);
-        }
-
-        // Cerrar la conexion con la cola
-        mq_close(mq);
+        printf("Nodo modificado\n");
+        print_tree(tree, 1);
     }
+    pthread_mutex_unlock(&mutex_abb);
+
+    res = htonl(res);
+    ret = sendMessage(s_local, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en el envío\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+
+    close(s_local);
+    pthread_exit(NULL);
+    exit(-1);
 }
 
-void delete_tuple(void *msg)
+void delete_tuple(void *arg)
 {
-    printf("Servicio delete\n");
+    printf("Serivicio delete\n");
 
-    // Definir el mensaje de respuesta
-    struct Respuesta res;
-    res.codigo = 0;
+    // Inicializamos la respuesta
+    int ret;
+    int32_t res = 0;
+
+    // Inicializamos el socket local para el hilo
+    int s_local;
 
     // Bloqueamos el lock para guardar el mensaje
     pthread_mutex_lock(&mutex_mensaje);
-    // Copiamos el mensaje
-    struct Mensaje mensaje;
-    mensaje = (*(struct Mensaje *)msg);
+
+    s_local = (*(int *)arg);
 
     mensaje_no_copiado = false;
     // Despertamos al hilo principal
@@ -293,59 +451,73 @@ void delete_tuple(void *msg)
     // Desbloqueamos el lock
     pthread_mutex_unlock(&mutex_mensaje);
 
-    // Abrir la cola del cliente para mandar la respuesta
-    mqd_t mq;
-    mq = mq_open(mensaje.queue, O_WRONLY);
-    if (mq == -1)
+    // Comprobar que la estructura de datos está poblada
+    if (initialized == 0)
     {
-        perror("Error al abrir la cola del cliente");
+        close(s_local);
+        pthread_exit(NULL);
         exit(-1);
+    }
+
+    // Recibimos la key en el siguiente mensaje por el socket
+    int32_t key;
+
+    ret = recvMessage(s_local, (char *)&key, sizeof(int32_t));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de la clave\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+    key = ntohl(key);
+
+    // Eliminamos el nodo con la clave recibida
+    pthread_mutex_lock(&mutex_abb);
+    if (delete_node(tree, key) == -1)
+    {
+        printf("Error eliminando el nodo: %d\n", key);
+        res = -1;
     }
     else
     {
-        // Comprobar que la estructura de datos está inicializada
-        pthread_mutex_lock(&mutex_abb);
-        if (initialized == 1)
-        {
-            // Realizar la operación
-            if (delete_node(tree, mensaje.key) == -1)
-            {
-                res.codigo = -1;
-            }
-            print_tree(tree, 1);
-        }
-        else
-        {
-            res.codigo = -1;
-        }
-        pthread_mutex_unlock(&mutex_abb);
-
-        // Mandar la respuesta por la cola
-        if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
-        {
-            perror("Error al mandar el mensaje de respuesta");
-            mq_close(mq);
-            exit(1);
-        }
-
-        // Cerrar la conexion con la cola
-        mq_close(mq);
+        printf("Nodo eliminado\n");
+        print_tree(tree, 1);
     }
+    pthread_mutex_unlock(&mutex_abb);
+
+    res = htonl(res);
+    ret = sendMessage(s_local, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en el envío\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+
+    close(s_local);
+    pthread_exit(NULL);
+    exit(-1);
 }
 
-void exist_tuple(void *msg)
+void exist_tuple(void *arg)
 {
-    printf("Servicio exist\n");
+    printf("Serivicio exist\n");
 
-    // Definir el mensaje de respuesta
-    struct Respuesta res;
-    res.codigo = 0;
+    // Inicializamos la respuesta
+    int ret;
+    int32_t res = 0;
+
+    // Inicializamos el socket local para el hilo
+    int s_local;
 
     // Bloqueamos el lock para guardar el mensaje
     pthread_mutex_lock(&mutex_mensaje);
-    // Copiamos el mensaje
-    struct Mensaje mensaje;
-    mensaje = (*(struct Mensaje *)msg);
+
+    s_local = (*(int *)arg);
 
     mensaje_no_copiado = false;
     // Despertamos al hilo principal
@@ -353,86 +525,124 @@ void exist_tuple(void *msg)
     // Desbloqueamos el lock
     pthread_mutex_unlock(&mutex_mensaje);
 
-    // Abrir la cola del cliente para mandar la respuesta
-    mqd_t mq;
-    mq = mq_open(mensaje.queue, O_WRONLY);
-    if (mq == -1)
+    // Comprobar que la estructura de datos está poblada
+    if (initialized == 0)
     {
-        perror("Error al abrir la cola del cliente");
+        close(s_local);
+        pthread_exit(NULL);
         exit(-1);
     }
-    else
+
+    // Recibimos la key en el siguiente mensaje por el socket
+    int32_t key;
+
+    ret = recvMessage(s_local, (char *)&key, sizeof(int32_t));
+    if (ret < 0)
     {
-        // Comprobar que la estructura de datos está inicializada
-        pthread_mutex_lock(&mutex_abb);
-        if (initialized == 1)
-        {
-            // Realizar la operación
-            res.codigo = head_node(tree, mensaje.key);
-        }
-        else
-        {
-            res.codigo = -1;
-        }
-        pthread_mutex_unlock(&mutex_abb);
+        printf("Error en la recepción de la clave\n");
 
-        // Mandar la respuesta por la cola
-        if (mq_send(mq, (const char *)&res, sizeof(res), 0) < 0)
-        {
-            perror("Error al mandar el mensaje de respuesta");
-            mq_close(mq);
-            exit(1);
-        }
-
-        // Cerrar la conexion con la cola
-        mq_close(mq);
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
     }
+    key = ntohl(key);
+
+    // Buscamos el nodo con la clave recibida
+    pthread_mutex_lock(&mutex_abb);
+    res = head_node(tree, key);
+    pthread_mutex_unlock(&mutex_abb);
+
+    res = htonl(res);
+    ret = sendMessage(s_local, (char *)&res, sizeof(int32_t));
+    if (ret == -1)
+    {
+        printf("Error en el envío\n");
+
+        close(s_local);
+        pthread_exit(NULL);
+        exit(-1);
+    }
+
+    close(s_local);
+    pthread_exit(NULL);
+    exit(-1);
+}
+
+int get_servicio(int sc)
+{
+    int ret;
+    char op;
+
+    ret = recvMessage(sc, (char *)&op, sizeof(char));
+    if (ret < 0)
+    {
+        printf("Error en la recepción de la operación\n");
+        return -1;
+    }
+    printf("Recibida operación: %d\n", op);
+
+    return op;
+}
+
+int the_end = 0;
+
+void sigHandler(int signo)
+{
+    the_end = 1;
 }
 
 int main(int argc, char **argv)
 {
     printf("Ha iniciado el servidor\n");
 
-    // Definir la cola de mensajes para las peticiones
-    mqd_t mq;
-    // Atributos
-    struct mq_attr attr;
-    attr.mq_maxmsg = 10;
-    attr.mq_msgsize = sizeof(struct Mensaje);
+    // Definir el socket
+    int sd, sc;
+    struct sigaction new_action, old_action;
 
-    // Abrir la cola de mensajes
-    mq = mq_open("/tuple_sv_queue", O_CREAT | O_RDONLY, 0700, &attr);
-    if (mq == -1)
+    sd = serverSocket(INADDR_ANY, 4200, SOCK_STREAM);
+    if (sd < 0)
     {
-        perror("mq_open");
-        exit(-1);
+        printf("SERVER: Error al crear el socket\n");
+        return 0;
     }
+
+    // si se presiona Ctrl-C el bucle termina
+    new_action.sa_handler = sigHandler;
+    sigemptyset(&new_action.sa_mask);
+    new_action.sa_flags = 0;
+    sigaction(SIGINT, NULL, &old_action);
+    if (old_action.sa_handler != SIG_IGN)
+    {
+        sigaction(SIGINT, &new_action, NULL);
+    }
+
+    // atributos de los hilos
+
     pthread_t thid;
-    pthread_attr_t t_attr;
+    pthread_attr_t attr;
 
-    pthread_mutex_init(&mutex_mensaje, NULL);
-    pthread_cond_init(&cond_mensaje, NULL);
-    pthread_attr_init(&t_attr);
-    pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-    // Leer el las peticiones en un bucle infinito
-    struct Mensaje msg;
-    for (;;)
+    // Leer las peticiones en un bucle infinito
+    while (0 == the_end)
     {
         // Leer una petición
-        if (mq_receive(mq, (char *)&msg, sizeof(msg), 0) == -1)
+        sc = serverAccept(sd);
+        if (sc < 0)
         {
-            perror("mq_receive");
-            mq_close(mq);
-            exit(1);
+            printf("Error en el accept\n");
+            continue;
         }
-        // Hacer un switch según el código de operación
-        char *end;
 
-        switch (strtol(msg.op, &end, 10))
+        int servicio = get_servicio(sc);
+
+        // Hacer un switch según el código de operación
+
+        switch (servicio)
         {
         case INIT:
-            if (pthread_create(&thid, &t_attr, (void *)init, (void *)&msg) == 0)
+            if (pthread_create(&thid, &attr, (void *)init, (void *)&sc) == 0)
             {
                 pthread_mutex_lock(&mutex_mensaje);
                 while (mensaje_no_copiado)
@@ -443,7 +653,7 @@ int main(int argc, char **argv)
             break;
 
         case GET:
-            if (pthread_create(&thid, &t_attr, (void *)get_tuple, (void *)&msg) == 0)
+            if (pthread_create(&thid, &attr, (void *)get_tuple, (void *)&sc) == 0)
             {
                 pthread_mutex_lock(&mutex_mensaje);
                 while (mensaje_no_copiado)
@@ -454,7 +664,7 @@ int main(int argc, char **argv)
             break;
 
         case SET:
-            if (pthread_create(&thid, &t_attr, (void *)set_tuple, (void *)&msg) == 0)
+            if (pthread_create(&thid, &attr, (void *)set_tuple, (void *)&sc) == 0)
             {
                 pthread_mutex_lock(&mutex_mensaje);
                 while (mensaje_no_copiado)
@@ -465,7 +675,7 @@ int main(int argc, char **argv)
             break;
 
         case MODIFY:
-            if (pthread_create(&thid, &t_attr, (void *)modify_tuple, (void *)&msg) == 0)
+            if (pthread_create(&thid, &attr, (void *)modify_tuple, (void *)&sc) == 0)
             {
                 pthread_mutex_lock(&mutex_mensaje);
                 while (mensaje_no_copiado)
@@ -476,7 +686,7 @@ int main(int argc, char **argv)
             break;
 
         case DELETE:
-            if (pthread_create(&thid, &t_attr, (void *)delete_tuple, (void *)&msg) == 0)
+            if (pthread_create(&thid, &attr, (void *)delete_tuple, (void *)&sc) == 0)
             {
                 pthread_mutex_lock(&mutex_mensaje);
                 while (mensaje_no_copiado)
@@ -487,7 +697,7 @@ int main(int argc, char **argv)
             break;
 
         case EXIST:
-            if (pthread_create(&thid, &t_attr, (void *)exist_tuple, (void *)&msg) == 0)
+            if (pthread_create(&thid, &attr, (void *)exist_tuple, (void *)&sc) == 0)
             {
                 pthread_mutex_lock(&mutex_mensaje);
                 while (mensaje_no_copiado)
@@ -499,24 +709,15 @@ int main(int argc, char **argv)
 
         // Definir código de operación incorrecto
         default:
-            printf("El dato consumido es: %s\n", msg.op);
-
-            if (*end == '\0')
-            {
-                printf("El código de operación debe estar entre 0 y 5\n");
-            }
-            else
-            {
-                printf("Error al registrar el número de operación\n");
-            }
+            printf("Error al registrar el número de operación: %d\n", servicio);
+            closeSocket(sc);
 
             break;
         }
     }
 
-    // Cerrar la cola de mensajes para peticiones
-    mq_close(mq);
-    mq_unlink("/tuple_sv_queue");
+    // Cerrar el socket al finalizar el programa
+    closeSocket(sd);
 
-    return (0);
+    return 0;
 }

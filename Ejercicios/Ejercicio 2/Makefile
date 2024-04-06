@@ -6,13 +6,13 @@ LIBS = -lclaves -Llib
 
 all: libclaves.so servidor cliente
 
-libclaves.so: claves.o
+libclaves.so: claves.o utils.o comm.o
 	$(CC) -shared $^ -o lib/$@
 
-servidor: servidor.o ABB.o utils.o
+servidor: servidor.o ABB.o utils.o comm.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
-cliente: cliente.o  utils.o
+cliente: cliente.o utils.o comm.o
 	$(CC) $(CFLAGS) $^ $(LIBS)  -o $@
 
 %.o: %.c
