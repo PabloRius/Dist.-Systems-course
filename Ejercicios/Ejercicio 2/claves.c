@@ -245,7 +245,7 @@ int delete_key(int key)
 int exist(int key)
 {
     char sendBuffer[1024];
-    char recvBuffer[1024;
+    char recvBuffer[1024];
     int sock, ret;
 
 
