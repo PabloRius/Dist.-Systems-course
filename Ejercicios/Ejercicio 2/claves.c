@@ -244,8 +244,8 @@ int delete_key(int key)
 
 int exist(int key)
 {
-    char sendBuffer[256]; // Asumiendo que este tamaño es suficiente para la solicitud
-    char recvBuffer[256]; // Asumiendo que este tamaño es suficiente para la respuesta
+    char sendBuffer[1024];
+    char recvBuffer[1024;
     int sock, ret;
 
 
@@ -257,8 +257,8 @@ int exist(int key)
     }
 
 
-    // Preparar mensaje de solicitud. Formato esperado: "E key", donde "E" indica operación exist
-    snprintf(sendBuffer, sizeof(sendBuffer), "E %d", key);
+    // Preparar mensaje de solicitud. Formato esperado:
+    snprintf(sendBuffer, sizeof(sendBuffer), "EXIST %d", key);
 
     ret = sendMessage(sock, sendBuffer, strlen(sendBuffer) + 1); // +1 para incluir el terminador nulo
     if (ret < 0) {
