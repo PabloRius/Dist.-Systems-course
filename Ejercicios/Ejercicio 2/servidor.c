@@ -37,7 +37,7 @@ int initialized = 0;
 
 void init(void *arg)
 {
-    printf("Serivicio init\n");
+    printf("Servicio init\n");
 
     // Inicializamos la respuesta
     int ret;
@@ -97,7 +97,7 @@ void init(void *arg)
 
 void get_tuple(void *arg)
 {
-    printf("Serivicio get\n");
+    printf("Servicio get\n");
 
     // Inicializamos la respuesta
     int ret;
@@ -217,7 +217,7 @@ void get_tuple(void *arg)
 
 void set_tuple(void *arg)
 {
-    printf("Serivicio set\n");
+    printf("Servicio set\n");
 
     // Inicializamos la respuesta
     int ret;
@@ -324,7 +324,7 @@ void set_tuple(void *arg)
 
 void modify_tuple(void *arg)
 {
-    printf("Serivicio modify\n");
+    printf("Servicio modify\n");
 
     // Inicializamos la respuesta
     int ret;
@@ -431,7 +431,7 @@ void modify_tuple(void *arg)
 
 void delete_tuple(void *arg)
 {
-    printf("Serivicio delete\n");
+    printf("Servicio delete\n");
 
     // Inicializamos la respuesta
     int ret;
@@ -505,7 +505,7 @@ void delete_tuple(void *arg)
 
 void exist_tuple(void *arg)
 {
-    printf("Serivicio exist\n");
+    printf("Servicio exist\n");
 
     // Inicializamos la respuesta
     int ret;

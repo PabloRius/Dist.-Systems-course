@@ -25,48 +25,28 @@ int main(int argc, char **argv)
     HOST = argv[1];
     PORT = atoi(argv[2]);
 
-    // set values 1
     int key1 = 100;
+    int key2 = 50;
+
     char cadena1[MAX_LENGTH] = "abcd";
     int N1 = 2;
     double vector1[2] = {1.1, 1.2};
 
-    // set values 2
-    int key2 = 50;
     char cadena2[MAX_LENGTH] = "efgh";
     int N2 = 3;
     double vector2[3] = {1.3, 1.4, 1.5};
 
-    // get values 2
-    char cadena4[MAX_LENGTH];
-    int N4;
-    double vector4[32];
+    char cadena4[MAX_LENGTH] = "Pablo Garcia";
+    int N4 = 5;
+    double vector4[5] = {2.1, 2.2, 2.3, 2.4, 2.5};
 
-    // modify values 1
-    char cadena5[MAX_LENGTH] = "Pablo Garcia";
-    int N5 = 5;
-    double vector5[5] = {2.1, 2.2, 2.3, 2.4, 2.5};
+    char cadena5[MAX_LENGTH] = "";
+    int N5 = 4;
+    double vector5[5] = {3.1, 3.2, 3.3, 3.4};
 
-    // modify values 2, error (hemos introducido un valor del tamaño del vector erroneo)
-    char cadena6[MAX_LENGTH] = "Pablo Garcia";
-    int N6 = 2;
-    double vector6[5] = {2.1, 2.2, 2.3, 2.4};
-
-    // modify values 3, cadena vacia
-    char cadena7[MAX_LENGTH] = "";
-    int N7 = 4;
-    double vector7[5] = {3.1, 3.2, 3.3, 3.4};
-
-    // modify values 4, vector vacio
-    char cadena8[MAX_LENGTH] = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas eu purus iaculis, interdum";
-    int N8 = 0;
-    double vector8[0] = {};
-
-    // set values para delete key 1
-    int key3 = 200;
-    char cadena9[MAX_LENGTH] = "sdgbs";
-    int N9 = 2;
-    double vector9[2] = {1.8, 1.9};
+    char cadena7[MAX_LENGTH] = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas eu purus iaculis, interdum";
+    int N7 = 10;
+    double vector7[10] = {1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7};
 
     // set values para delete key 2
     int key4 = 250;
@@ -86,13 +66,17 @@ int main(int argc, char **argv)
     double vector12[32] = {-1.5, -9.5, 4.4, 5.7, -9.1, -7.9, 4.0, -9.7, 5.0, -9.6, -2.5, -9.2, -2.1, -3.0, -0.1, 3.2, -6.7, 0.6, 3.7, -2.4, -7.2, -0.5, 4.7, -5.4, -9.5, -6.9, -8.7, -5.9, -2.9, -2.4, 5.6, -8.7};
 
     // iniciamos el fichero de claves
+    printf("TEST 1\n");
     init();
 
     // set values
+    printf("TEST 2\n");
     set_value(key1, cadena1, N1, vector1);
+    printf("TEST 3\n");
     set_value(key2, cadena2, N2, vector2);
 
     // Comprobamos que se han introducido las tuplas
+    printf("TEST 4\n");
     char cadena3[MAX_LENGTH];
     int N3;
     double vector3[32];
@@ -101,53 +85,75 @@ int main(int argc, char **argv)
         printf("--RESULTADO--: Cadena: %s, N: %d, vector: ", cadena3, N3);
         print_double_array(vector3, N3);
     }
+    printf("TEST 5\n");
     if (get_value(key2, cadena3, &N3, vector3) >= 0)
     {
         printf("--RESULTADO--: Cadena: %s, N: %d, vector: ", cadena3, N3);
         print_double_array(vector3, N3);
     }
-    // modify_values
-    // if (modify_value(key1, cadena5, N5, vector5) >= 0)
-    // {
-    //     printf("%s, %d, ", cadena5, N5);
-    //     print_double_array(vector5, N5);
-    // }
+    // Un get inexistente
+    printf("TEST 6\n");
+    if (get_value(1234, cadena3, &N3, vector3) >= 0)
+    {
+        printf("--RESULTADO--: Cadena: %s, N: %d, vector: ", cadena3, N3);
+        print_double_array(vector3, N3);
+    }
 
-    // // modify_values con valor N erroneo
-    // if (modify_value(key2, cadena6, N6, vector6) >= 0)
-    // {
-    //     printf("%s, %d, ", cadena6, N6);
-    //     print_double_array(vector6, N6);
-    // }
+    // Modificamos valores
+    printf("TEST 7\n");
+    if (modify_value(key1, cadena4, N4, vector4) >= 0)
+    {
+        if (get_value(key1, cadena3, &N3, vector3) >= 0)
+        {
+            printf("--RESULTADO--: Cadena: %s, N: %d, vector: ", cadena3, N3);
+            print_double_array(vector3, N3);
+        }
+    }
+    // Modify con clave inexistente
+    printf("TEST 8\n");
+    modify_value(1234, cadena4, N4, vector4);
 
-    // // modify_values, cadena modificada para que este vacia
-    // if (modify_value(key2, cadena7, N7, vector7) >= 0)
-    // {
-    //     printf("%s, %d, ", cadena7, N7);
-    //     print_double_array(vector7, N7);
-    // }
+    // Modify con cadena vacía
+    printf("TEST 9\n");
+    if (modify_value(key2, cadena5, N5, vector5) >= 0)
+    {
+        if (get_value(key2, cadena3, &N3, vector3) >= 0)
+        {
+            printf("--RESULTADO--: Cadena: %s, N: %d, vector: ", cadena3, N3);
+            print_double_array(vector3, N3);
+        }
+    }
 
-    // // modify_values, vector sin elementos
-    // if (modify_value(key1, cadena8, N8, vector8) >= 0)
-    // {
-    //     printf("%s, %d, ", cadena8, N8);
-    //     print_double_array(vector8, N8);
-    // }
+    // Introducimos varias tuplas seguidas
+    printf("TEST 11\n");
+    for (int i = 101; i < 150; i++)
+    {
+        set_value(i, cadena7, N7, vector7);
+    }
+    // Comprobamos que se han metido extrayendo una de ellas
+    printf("TEST 12\n");
+    if (get_value(127, cadena3, &N3, vector3) >= 0)
+    {
+        printf("--RESULTADO--: Cadena: %s, N: %d, vector: ", cadena3, N3);
+        print_double_array(vector3, N3);
+    }
 
-    // // set values para delete key
-    // set_value(key3, cadena9, N9, vector9);
-    // set_value(key4, cadena10, N10, vector10);
+    // Eliminamos una de las claves que introdujimos
+    printf("TEST 13\n");
+    delete_key(127);
+    // Comprobamos que se ha eliminado extrayéndola
+    printf("TEST 14\n");
+    if (get_value(127, cadena3, &N3, vector3) >= 0)
+    {
+        printf("--RESULTADO--: Cadena: %s, N: %d, vector: ", cadena3, N3);
+        print_double_array(vector3, N3);
+    }
 
-    // // delete key normal
-    // delete_key(key3);
-    // delete_key(key4);
-
-    // // delete key con una key no guardada
-    // // delete_key(5);
-
-    // // exist key
-    // exist(key1);
-    // exist(key2);
+    // Probamos el exist con una clave existente y otra errónea
+    printf("TEST 16\n");
+    exist(key1);
+    printf("TEST 17\n");
+    exist(1000000);
 
     // exist(5);
     // exist(0);

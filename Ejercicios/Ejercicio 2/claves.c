@@ -31,7 +31,7 @@ int init()
         printf("Error envío op\n");
         return -1;
     }
-    printf("Resperando respuests\n");
+    printf("Esperando respuests\n");
     ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
     if (ret == -1)
     {
@@ -89,7 +89,7 @@ int set_value(int key, char *value1, int N_value2, double *V_value2)
         return -1;
     }
 
-    printf("Resperando respuesta\n");
+    printf("Esperando respuesta\n");
     ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
     if (ret == -1)
     {
@@ -125,7 +125,7 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2)
         printf("Error envío key\n");
         return -1;
     }
-    printf("Resperando respuesta\n");
+    printf("Esperando respuesta\n");
     ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
     if (ret == -1)
     {
@@ -138,7 +138,7 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2)
     {
         char cadena[255];
         int N;
-        printf("Resperando el resto de argumentos\n");
+        printf("Esperando el resto de argumentos\n");
         ret = recvMessage(sd, (char *)cadena, 255 * sizeof(char));
         if (ret < 0)
         {
@@ -221,7 +221,7 @@ int modify_value(int key, char *value1, int N_value2, double *V_value2)
         return -1;
     }
 
-    printf("Resperando respuesta\n");
+    printf("Esperando respuesta\n");
     ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
     if (ret == -1)
     {
@@ -258,7 +258,7 @@ int delete_key(int key)
         return -1;
     }
 
-    printf("Resperando respuesta\n");
+    printf("Esperando respuesta\n");
     ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
     if (ret == -1)
     {
@@ -295,7 +295,7 @@ int exist(int key)
         return -1;
     }
 
-    printf("Resperando respuesta\n");
+    printf("Esperando respuesta\n");
     ret = recvMessage(sd, (char *)&res, sizeof(int32_t));
     if (ret == -1)
     {
