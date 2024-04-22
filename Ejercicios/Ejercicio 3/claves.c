@@ -243,3 +243,26 @@ int exist(int key) {
 
     return result.code;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
