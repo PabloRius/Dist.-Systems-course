@@ -18,6 +18,20 @@ void print_double_array(double *array, int size)
     printf("]\n");
 }
 
+void print_char_array(char **array, int size)
+{
+    printf("[");
+    for (int i = 0; i < size; i++)
+    {
+        printf("%s", array[i]);
+        if (i < size - 1)
+        {
+            printf(", ");
+        }
+    }
+    printf("]\n");
+}
+
 void datoc(double *array, int size, char *output)
 {
     char *serializer = "|";
@@ -52,15 +66,4 @@ void ctoda(double *array, int size, char *input)
         array[index++] = atof(token);
         token = strtok(NULL, delimiter);
     }
-}
-
-int conn_socket(char *HOST, int PORT)
-{
-    int sd = clientSocket(HOST, PORT);
-    if (sd < 0)
-    {
-        printf("Error en clientSocket with %s:%d\n", HOST, PORT);
-        return -1;
-    }
-    return sd;
 }
