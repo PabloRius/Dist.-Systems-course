@@ -1,6 +1,7 @@
 from enum import Enum
 import argparse
 import socket
+import threading
 
 class client :
 
@@ -15,12 +16,23 @@ class client :
     # ****************** ATTRIBUTES ******************
     _server = None
     _port = -1
+    _threads = {}
 
     # ******************** METHODS *******************
     @staticmethod
     def readResponse(sock):
         a = sock.recv(1)
         return (int(a.decode(),10))
+    
+    @staticmethod
+    def readLine(sock):
+        a = ''
+        while True:
+            msg = sock.recv(1)
+            if(msg == b'\0'):
+                break
+            a+= msg.decode()
+        return a
 
     @staticmethod
     def  register(user) :
@@ -44,14 +56,66 @@ class client :
    
     @staticmethod
     def  unregister(user) :
-        #  Write your code here
-        return client.RC.ERROR
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((client._server, client._port))
+        message = 'UNREGISTER\0'
+        sock.sendall(message.encode())
+        message = f'{user}\0'
+        sock.sendall(message.encode())
+        res = client.readResponse(sock)
+        sock.close()
+        if res == 0:
+            print("c> UNREGISTER OK")
+        elif res == 1:
+            print("c> USER DOES NOT EXIST")
+        else:
+            print("c> UNREGISTER FAIL")
+                
+        return client.RC.OK
 
-
+    @staticmethod
+    def sock_listen(s_socket:socket.socket):
+        s_socket.listen(5)
+        while True:
+            try:
+                conn, _ = s_socket.accept()
+                try:
+                    msg = client.readLine(s_socket)
+                    print(msg)
+                finally:
+                    conn.close()
+            except KeyboardInterrupt:
+                break
     
     @staticmethod
     def  connect(user) :
-        #  Write your code here
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.connect((client._server, client._port))
+        message = 'CONNECT\0'
+        sock.sendall(message.encode())
+        message = f'{user}\0'
+        sock.sendall(message.encode())
+        # Creamos el socket por el que el cliente va a escuchar peticiones de otros clientes
+        s_socket = socket.socket()
+        s_socket.bind(('',0))
+        _, port = s_socket.getsockname()
+        message = f'{port}\0'
+        sock.sendall(message.encode())
+
+        client._threads[user] = threading.Thread(target=client.sock_listen, args=(s_socket,))
+        client._threads[user].start()
+
+        res = client.readResponse(sock)
+        sock.close()
+        if res == 0:
+            print("c> CONNECT OK")
+        elif res == 1:
+            print("c> CONNECT FAIL, USER DOES NOT EXIST")
+        elif res == 2:
+            print("c> USER ALREADY CONNECTED")
+        else:
+            print("c> CONNECT FAIL")
         return client.RC.ERROR
 
 
@@ -205,6 +269,8 @@ class client :
 
         #  Write code here
         client.shell()
+        for i in client._threads:
+            i.termiante()
         print("+++ FINISHED +++")
     
 

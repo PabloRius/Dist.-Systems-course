@@ -52,7 +52,10 @@ int register_user(struct Tree *tree, char username[MAX_LENGTH])
     newNode->key = key;
     strcpy(newNode->username, username);
     newNode->files = NULL;
-
+    newNode->connected = false;
+    
+    newNode->port = -1;
+    strcpy(newNode->hostname, "");
     newNode->left = NULL;
     newNode->right = NULL;
 
@@ -101,6 +104,7 @@ int unregister_user(struct Tree *tree, char username[MAX_LENGTH])
     unsigned long key = parse_key(username);
 
     struct TreeNode *currentNode = tree->root;
+    if(currentNode == NULL) { return tree_error("Tree is empty", 1); }
 
     struct TreeNode *parent = NULL;
     while (currentNode != NULL && currentNode->key != key)
@@ -127,6 +131,7 @@ int unregister_user(struct Tree *tree, char username[MAX_LENGTH])
         if (parent == NULL)
         {
             // Es el nodo raiz
+            printf("Root a null\n");
             tree->root = NULL;
         }
         else if (parent->right == currentNode)
@@ -258,6 +263,45 @@ int get_user(struct Tree *tree, char username[MAX_LENGTH], char **files)
     return tree_error("La clave introducida no existe", 1);
 }
 
+int connect_user(struct Tree *tree, char username[MAX_LENGTH], char hostname[MAX_LENGTH], int port)
+{
+    unsigned long key = parse_key(username);
+
+    struct TreeNode *currentNode = tree->root;
+
+    while (currentNode != NULL)
+    {
+        if (key > currentNode->key)
+        {
+            currentNode = currentNode->right;
+        }
+        else if (key < currentNode->key)
+        {
+            currentNode = currentNode->left;
+        }
+        else
+        {
+            // La key que buscamos
+
+            // Primero comprobamos que el usuario no esté ya conectado
+            // si no lo está, se cambia su estado                
+
+            if (currentNode->connected == true) 
+            {
+                return tree_error("El usuario ya está conectado",2);
+            }
+            currentNode->connected = true;
+            
+            strcpy(currentNode->hostname, hostname);
+            currentNode->port = port;
+            
+            return 0;
+            
+        }
+    }
+    return tree_error("El usuario no existe", 1);
+}
+
 int publish_file(struct Tree *tree, char username[MAX_LENGTH], char *file)
 {
     unsigned long key = parse_key(username);
@@ -386,7 +430,7 @@ void print_node(struct TreeNode *node, int level, int expanded, char *side)
     }
     else
     {
-        printf("|--%s\tFiles: ", node->username);
+        printf("|--%s - IP: %s, PORT: %d, \tFiles: ", node->username, node->hostname, node->port);
         print_char_array(node->files, node->N_files);
     }
 

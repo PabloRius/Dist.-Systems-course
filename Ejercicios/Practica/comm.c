@@ -1,6 +1,6 @@
 #include "comm.h"
 
-int serverSocket(unsigned int addr, int port, int type)
+int serverSocket(unsigned int addr, int port, int type, char ip_out[INET_ADDRSTRLEN])
 {
     struct sockaddr_in server_addr;
     int sd, ret;
@@ -38,6 +38,13 @@ int serverSocket(unsigned int addr, int port, int type)
         perror("listen: ");
         return -1;
     }
+
+    struct sockaddr_in direccion;
+    socklen_t direccion_len = sizeof(direccion);
+    getsockname(sd, (struct sockaddr *)&direccion, &direccion_len);
+    char direccion_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(direccion.sin_addr), direccion_ip, INET_ADDRSTRLEN);
+    strcpy(ip_out, direccion_ip);
 
     return sd;
 }

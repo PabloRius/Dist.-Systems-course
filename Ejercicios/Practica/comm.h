@@ -10,7 +10,7 @@
 #include <string.h>
 #include <errno.h>
 
-int serverSocket(unsigned int addr, int port, int type);
+int serverSocket(unsigned int addr, int port, int type, char ip_out[INET_ADDRSTRLEN]);
 int serverAccept(int sd);
 int clientSocket(char *remote, int port);
 int closeSocket(int sd);

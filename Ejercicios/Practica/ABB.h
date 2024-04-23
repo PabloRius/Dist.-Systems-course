@@ -1,6 +1,8 @@
 #ifndef ABB_H
 #define ABB_H 1
 
+#include <stdbool.h>
+
 #define MAX_LENGTH 256
 
 #define ANSI_COLOR_BLUE "\x1b[34m"
@@ -13,6 +15,9 @@ typedef struct TreeNode
     char username[MAX_LENGTH];
     int N_files;
     char **files;
+    bool connected;
+    char hostname[MAX_LENGTH];
+    int port;
 
     struct TreeNode *left;
     struct TreeNode *right;
@@ -27,6 +32,7 @@ typedef struct Tree
 int init_tree(struct Tree **tree);
 int register_user(struct Tree *tree, char username[MAX_LENGTH]);
 int unregister_user(struct Tree *tree, char username[MAX_LENGTH]);
+int connect_user(struct Tree *tree, char username[MAX_LENGTH], char hostname[MAX_LENGTH], int port);
 int get_user(struct Tree *tree, char username[MAX_LENGTH], char **files);
 int publish_file(struct Tree *tree, char username[MAX_LENGTH], char *file);
 int delete_file(struct Tree *tree, char username[MAX_LENGTH], char *file);
