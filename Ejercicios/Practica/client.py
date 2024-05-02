@@ -122,32 +122,215 @@ class client :
     
     @staticmethod
     def  disconnect(user) :
-        #  Write your code here
+        # Primero, detener el hilo de escucha si está activo
+        if user in client._threads:
+            client._threads[user].do_run = False
+            client._threads[user].join()
+
+        # Crear socket y conectar al servidor
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((client._server, client._port))
+
+        # Enviar comando "DISCONNECT"
+        sock.sendall('DISCONNECT\0'.encode())
+
+        # Enviar el nombre del usuario que se desconecta
+        sock.sendall(f'{user}\0'.encode())
+
+        # Recibir el resultado de la operación
+        res = client.readResponse(sock)
+
+        # Interpretar la respuesta del servidor
+        if res == 0:
+            print("c> DISCONNECT OK")
+        elif res == 1:
+            print("c> DISCONNECT FAIL / USER DOES NOT EXIST")
+        elif res == 2:
+            print("c> DISCONNECT FAIL / USER NOT CONNECTED")
+        else:
+            print("c> DISCONNECT FAIL")
         return client.RC.ERROR
 
     @staticmethod
     def  publish(fileName,  description) :
-        #  Write your code here
+        # Crear socket y conectar al servidor
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((client._server, client._port))
+
+        # Enviar comando "PUBLISH"
+        message = 'PUBLISH\0'
+        sock.sendall(message.encode())
+
+        # Enviar el nombre del usuario
+        sock.sendall(f'{user}\0'.encode())
+
+        # Enviar el nombre del archivo (asegurarse que no exceda 256 bytes y no tenga espacios)
+        if len(fileName) > 256 or ' ' in fileName:
+            print("c> PUBLISH FAIL, FILE NAME INVALID")
+            return client.RC.ERROR
+        sock.sendall(f'{fileName}\0'.encode())
+
+        # Enviar la descripción (asegurarse que no exceda 256 bytes)
+        if len(description) > 256:
+            print("c> PUBLISH FAIL, DESCRIPTION TOO LONG")
+            return client.RC.ERROR
+        sock.sendall(f'{description}\0'.encode())
+
+        # Leer la respuesta del servidor
+        res = client.readResponse(sock)
+
+        # Manejar la respuesta
+        if res == 0:
+            print("c> PUBLISH OK")
+        elif res == 1:
+            print("c> PUBLISH FAIL, USER DOES NOT EXIST")
+        elif res == 2:
+            print("c> PUBLISH FAIL, USER NOT CONNECTED")
+        elif res == 3:
+            print("c> PUBLISH FAIL, CONTENT ALREADY PUBLISHED")
+        else:
+            print("c> PUBLISH FAIL")
+
         return client.RC.ERROR
 
     @staticmethod
     def  delete(fileName) :
-        #  Write your code here
+         # Crear socket y conectar al servidor
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((client._server, client._port))
+
+        # Enviar comando "DELETE"
+        message = 'DELETE\0'
+        sock.sendall(message.encode())
+
+        # Enviar el nombre del usuario
+        sock.sendall(f'{user}\0'.encode())
+
+        # Enviar el nombre del archivo (asegurarse que no exceda 256 bytes y no tenga espacios)
+        if len(fileName) > 256 or ' ' in fileName:
+            print("c> DELETE FAIL, FILE NAME INVALID")
+            return client.RC.ERROR
+        sock.sendall(f'{fileName}\0'.encode())
+
+        # Leer la respuesta del servidor
+        res = client.readResponse(sock)
+
+        # Manejar la respuesta
+        if res == 0:
+            print("c> DELETE OK")
+        elif res == 1:
+            print("c> DELETE FAIL, USER DOES NOT EXIST")
+        elif res == 2:
+            print("c> DELETE FAIL, USER NOT CONNECTED")
+        elif res == 3:
+            print("c> DELETE FAIL, CONTENT NOT PUBLISHED")
+        else:
+            print("c> DELETE FAIL")
         return client.RC.ERROR
 
     @staticmethod
     def  listusers() :
-        #  Write your code here
+         # Crear socket y conectar al servidor
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((client._server, client._port))
+
+        # Enviar comando "LIST USERS"
+        message = 'LIST_USERS\0'
+        sock.sendall(message.encode())
+
+        # Enviar el nombre del usuario que realiza la operación
+        sock.sendall(f'{user}\0'.encode())
+
+        # Leer la respuesta del servidor
+        res = client.readResponse(sock)
+
+        # Manejar la respuesta inicial
+        if res == 0:
+            # Leer el número de usuarios que se enviarán
+            num_users = int(client.readLine(sock))
+            print("c> LIST_USERS OK")
+            for _ in range(num_users):
+                username = client.readLine(sock)
+                ip = client.readLine(sock)
+                port = client.readLine(sock)
+                print(f"{username} {ip} {port}")
+        elif res == 1:
+            print("c> LIST_USERS FAIL, USER DOES NOT EXIST")
+        elif res == 2:
+            print("c> LIST_USERS FAIL, USER NOT CONNECTED")
+        else:
+            print("c> LIST_USERS FAIL")
         return client.RC.ERROR
 
     @staticmethod
     def  listcontent(user) :
-        #  Write your code here
+        # Crear socket y conectar al servidor
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((client._server, client._port))
+
+        # Enviar comando "LIST CONTENT"
+        message = 'LIST_CONTENT\0'
+        sock.sendall(message.encode())
+
+        # Enviar el nombre del usuario que realiza la operación
+        sock.sendall(f'{requesting_user}\0'.encode())
+
+        # Enviar el nombre del usuario cuyo contenido se desea conocer
+        sock.sendall(f'{user}\0'.encode())
+
+        # Leer la respuesta del servidor
+        res = client.readResponse(sock)
+
+        # Manejar la respuesta inicial
+        if res == 0:
+            # Leer el número de ficheros que se enviarán
+            num_files = int(client.readLine(sock))
+            print("c> LIST_CONTENT OK")
+            for _ in range(num_files):
+                file_name = client.readLine(sock)
+                description = client.readLine(sock)
+                print(f'{file_name} "{description}"')
+        elif res == 1:
+            print("c> LIST_CONTENT FAIL, USER DOES NOT EXIST")
+        elif res == 2:
+            print("c> LIST_CONTENT FAIL, USER NOT CONNECTED")
+        elif res == 3:
+            print("c> LIST_CONTENT FAIL, REMOTE USER DOES NOT EXIST")
+        else:
+            print("c> LIST_CONTENT FAIL")
         return client.RC.ERROR
 
     @staticmethod
     def  getfile(user,  remote_FileName,  local_FileName) :
-        #  Write your code here
+
+         # Crear un socket TCP/IP
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # Conectar al cliente remoto
+        sock.connect((remote_ip, remote_port))
+
+        # Enviar el comando "GET FILE"
+        message = 'GET_FILE\0'
+        sock.sendall(message.encode())
+
+        # Enviar el nombre del fichero que se desea descargar
+        sock.sendall(f'{remote_FileName}\0'.encode())
+
+        # Recibir el resultado de la operación
+        result = client.readResponse(sock)
+
+        if result == 0:
+            # Recibir el contenido del fichero y escribirlo al fichero local
+            with open(local_FileName, 'wb') as f:
+                while True:
+                    data = sock.recv(1024)
+                    if not data:
+                        break
+                    f.write(data)
+            print("c> GET_FILE OK")
+        elif result == 1:
+            print("c> GET_FILE FAIL / FILE NOT EXIST")
+        else:
+            print("c> GET_FILE FAIL")
         return client.RC.ERROR
 
     # *
