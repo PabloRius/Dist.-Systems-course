@@ -16,7 +16,10 @@ class client :
     # ****************** ATTRIBUTES ******************
     _server = None
     _port = -1
-    _threads = {}
+
+    _user_connected:str = ""
+    _user_thread:threading.Thread
+    _user_socket:socket.socket
 
     # ******************** METHODS *******************
     @staticmethod
@@ -74,17 +77,17 @@ class client :
         return client.RC.OK
 
     @staticmethod
-    def sock_listen(s_socket:socket.socket):
-        s_socket.listen(5)
+    def sock_listen():
+        client._user_socket.listen(5)
         while True:
             try:
-                conn, _ = s_socket.accept()
+                conn, _ = client._user_socket.accept()
                 try:
-                    msg = client.readLine(s_socket)
+                    msg = client.readLine(client._user_socket)
                     print(msg)
                 finally:
                     conn.close()
-            except KeyboardInterrupt:
+            except:
                 break
     
     @staticmethod
@@ -97,60 +100,43 @@ class client :
         message = f'{user}\0'
         sock.sendall(message.encode())
         # Creamos el socket por el que el cliente va a escuchar peticiones de otros clientes
-        s_socket = socket.socket()
-        s_socket.bind(('',0))
-        _, port = s_socket.getsockname()
+        client._user_socket = socket.socket()
+        client._user_socket.bind(('',0))
+        _, port = client._user_socket.getsockname()
         message = f'{port}\0'
         sock.sendall(message.encode())
 
         # TODO: Hay que crear el hilo independiente para no tener que hacer un join
-        client._threads[user] = threading.Thread(target=client.sock_listen, args=(s_socket,))
-        client._threads[user].start()
+        client._user_connected = user
+        client._user_thread = threading.Thread(target=client.sock_listen)
+        client._user_thread.start()
 
         res = client.readResponse(sock)
         sock.close()
         if res == 0:
             print("c> CONNECT OK")
+            return client.RC.OK
         elif res == 1:
+            # Si el servidor no ha procesado la operación correctamente, se revierte la creación del socket e hilo
             print("c> CONNECT FAIL, USER DOES NOT EXIST")
+            client._user_connected = ""
+            client._user_socket.close()
+            client._user_thread.join()
+            return client.RC.USER_ERROR
         elif res == 2:
+            # Si el servidor no ha procesado la operación correctamente, se revierte la creación del socket e hilo
             print("c> USER ALREADY CONNECTED")
+            client._user_connected = ""
+            client._user_socket.close()
+            client._user_thread.join()
+            return client.RC.USER_ERROR
         else:
+            # Si el servidor no ha procesado la operación correctamente, se revierte la creación del socket e hilo
             print("c> CONNECT FAIL")
-        return client.RC.ERROR
-
-
-    
-    @staticmethod
-    def  disconnect(user) :
-        # Primero, detener el hilo de escucha si está activo
-        if user in client._threads:
-            client._threads[user].do_run = False
-            client._threads[user].join()
-
-        # Crear socket y conectar al servidor
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((client._server, client._port))
-
-        # Enviar comando "DISCONNECT"
-        sock.sendall('DISCONNECT\0'.encode())
-
-        # Enviar el nombre del usuario que se desconecta
-        sock.sendall(f'{user}\0'.encode())
-
-        # Recibir el resultado de la operación
-        res = client.readResponse(sock)
-
-        # Interpretar la respuesta del servidor
-        if res == 0:
-            print("c> DISCONNECT OK")
-        elif res == 1:
-            print("c> DISCONNECT FAIL / USER DOES NOT EXIST")
-        elif res == 2:
-            print("c> DISCONNECT FAIL / USER NOT CONNECTED")
-        else:
-            print("c> DISCONNECT FAIL")
-        return client.RC.ERROR
+            client._user_connected = ""
+            client._user_socket.close()
+            client._user_thread.join()
+            return client.RC.ERROR
 
     @staticmethod
     def  publish(fileName,  description) :
@@ -163,17 +149,16 @@ class client :
         sock.sendall(message.encode())
 
         # Enviar el nombre del usuario
-        sock.sendall(f'{user}\0'.encode())
+        sock.sendall(f'{client._user_connected}\0'.encode())
 
-        # Enviar el nombre del archivo (asegurarse que no exceda 256 bytes y no tenga espacios)
-        if len(fileName) > 256 or ' ' in fileName:
-            print("c> PUBLISH FAIL, FILE NAME INVALID")
+        # Enviar el nombre del archivo (asegurarse que no exceda 256 bytes)
+        if len(fileName) > 256 or len(description) > 256:
             return client.RC.ERROR
+        
         sock.sendall(f'{fileName}\0'.encode())
 
         # Enviar la descripción (asegurarse que no exceda 256 bytes)
         if len(description) > 256:
-            print("c> PUBLISH FAIL, DESCRIPTION TOO LONG")
             return client.RC.ERROR
         sock.sendall(f'{description}\0'.encode())
 
@@ -192,6 +177,35 @@ class client :
         else:
             print("c> PUBLISH FAIL")
 
+        return client.RC.ERROR
+    
+    @staticmethod
+    def  disconnect(user) :       
+        # Crear socket y conectar al servidor
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((client._server, client._port))
+
+        # Enviar comando "DISCONNECT"
+        sock.sendall('DISCONNECT\0'.encode())
+
+        # Enviar el nombre del usuario que se desconecta
+        sock.sendall(f'{user}\0'.encode())
+
+        # Recibir el resultado de la operación
+        res = client.readResponse(sock)
+
+        # Interpretar la respuesta del servidor
+        if res == 0:
+            # Si el servidor responde correctamente a la desconexión, se realiza la operación en el cliente
+            client._user_socket.close()
+            client._user_thread.join()
+            print("c> DISCONNECT OK")
+        elif res == 1:
+            print("c> DISCONNECT FAIL / USER DOES NOT EXIST")
+        elif res == 2:
+            print("c> DISCONNECT FAIL / USER NOT CONNECTED")
+        else:
+            print("c> DISCONNECT FAIL")
         return client.RC.ERROR
 
     @staticmethod
@@ -453,8 +467,8 @@ class client :
 
         #  Write code here
         client.shell()
-        for i in client._threads:
-            i.termiante()
+        if(client._user_thread):
+            client._user_thread
         print("+++ FINISHED +++")
     
 

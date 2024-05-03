@@ -121,7 +121,7 @@ int unregister_user(struct Tree *tree, char username[MAX_LENGTH])
 
         if (currentNode == NULL)
         {
-            tree_error("La clave introducida no existe", 1);
+            return tree_error("La clave introducida no existe", 1);
         }
     }
     // Posibles casos
@@ -131,7 +131,6 @@ int unregister_user(struct Tree *tree, char username[MAX_LENGTH])
         if (parent == NULL)
         {
             // Es el nodo raiz
-            printf("Root a null\n");
             tree->root = NULL;
         }
         else if (parent->right == currentNode)
@@ -144,8 +143,10 @@ int unregister_user(struct Tree *tree, char username[MAX_LENGTH])
             // Es el hijo izquierdo
             parent->left = NULL;
         }
+        printf("Hace las cosas\n");
         free(currentNode->files);
         free(currentNode);
+        printf("Hechas las cosas\n");
         tree->N--;
         return 0;
     }
@@ -213,8 +214,8 @@ int unregister_user(struct Tree *tree, char username[MAX_LENGTH])
         strcpy(currentNode->username, successor->username);
         currentNode->N_files = successor->N_files;
         free(currentNode->files);
-        currentNode->files = (char **)malloc(currentNode->N_files * 256 * sizeof(char));
-        memcpy(currentNode->files, successor->files, currentNode->N_files * 256 * sizeof(char));
+        currentNode->files = (struct PublishedFile *)malloc(currentNode->N_files * sizeof(struct PublishedFile));
+        memcpy(currentNode->files, successor->files, currentNode->N_files * sizeof(struct PublishedFile));
 
         // Eliminar el sucesor
         if (successorParent->left == successor)
@@ -360,7 +361,7 @@ int publish_file(struct Tree *tree, char username[MAX_LENGTH], char filename[MAX
             if (currentNode->files == NULL)
             {               
                 // Si el array de fichero está vacío, el nuevo se puede introducir directamente
-                currentNode->files = (struct PublishedFile **)malloc(sizeof(struct PublishedFile));
+                currentNode->files = (struct PublishedFile *)malloc(sizeof(struct PublishedFile));
                 strcpy(currentNode->files[0].name, filename);
                 strcpy(currentNode->files[0].desc, filedesc);
                 currentNode->N_files = 1;
@@ -384,7 +385,7 @@ int publish_file(struct Tree *tree, char username[MAX_LENGTH], char filename[MAX
     return tree_error("El usuario no existe", 1);
 }
 
-int delete_file(struct Tree *tree, char username[MAX_LENGTH], char *file)
+int delete_file(struct Tree *tree, char username[MAX_LENGTH], char file[256])
 {
     unsigned long key = parse_key(username);
 
@@ -433,36 +434,6 @@ int delete_file(struct Tree *tree, char username[MAX_LENGTH], char *file)
     return tree_error("El usuario no existe", 1);
 }
 
-int list_users(struct Tree *tree, char username[MAX_LENGTH], int *N_users_out, struct User **user_lst_out)
-{
-    unsigned long key = parse_key(username);
-
-    struct TreeNode *currentNode = tree->root;
-
-    if (tree == NULL || currentNode == NULL)
-    {
-        return tree_error("El árbol está vacío", 1);
-    }
-
-    *N_users_out = 0;
-    bool userexists = false;
-    bool userconnected = false;
-
-
-    list_users_traverse(currentNode, username, N_users_out, user_lst_out, &userexists, &userconnected);
-
-    if (userexists == false)
-    {
-        return tree_error("User doesn't exist", 1);
-    }
-    if (userexists == true && userconnected == false)
-    {
-        return tree_error("User isn't connected", 2);
-    }
-    return 0;
-
-}
-
 void list_users_traverse(struct TreeNode *node, char username[MAX_LENGTH], int *N_users_out, struct User **user_lst_out, bool *userexists, bool *userconnected)
 {
     if (node == NULL)
@@ -492,7 +463,35 @@ void list_users_traverse(struct TreeNode *node, char username[MAX_LENGTH], int *
     list_users_traverse(node->right, username, N_users_out, user_lst_out, userexists, userconnected);
 }
 
-int list_content(struct Tree *tree, char username[MAX_LENGTH], char username_req[MAX_LENGTH], int *N_files_out, struct PublishedFile *file_lst_out)
+int list_users(struct Tree *tree, char username[MAX_LENGTH], int *N_users_out, struct User **user_lst_out)
+{
+    struct TreeNode *currentNode = tree->root;
+
+    if (tree == NULL || currentNode == NULL)
+    {
+        return tree_error("El árbol está vacío", 1);
+    }
+
+    *N_users_out = 0;
+    bool userexists = false;
+    bool userconnected = false;
+
+
+    list_users_traverse(currentNode, username, N_users_out, user_lst_out, &userexists, &userconnected);
+
+    if (userexists == false)
+    {
+        return tree_error("User doesn't exist", 1);
+    }
+    if (userexists == true && userconnected == false)
+    {
+        return tree_error("User isn't connected", 2);
+    }
+    return 0;
+
+}
+
+int list_content(struct Tree *tree, char username[MAX_LENGTH], char username_req[MAX_LENGTH], int *N_files_out, struct PublishedFile **file_lst_out)
 {
     unsigned long key = parse_key(username);
     unsigned long key_req = parse_key(username_req);
@@ -555,6 +554,20 @@ void print_tree(struct Tree *tree, int expanded)
     }
 }
 
+void print_file_array(struct PublishedFile *files, int size)
+{
+    printf("[");
+    for (int i = 0; i < size; i++)
+    {
+        printf("Fichero: \t%s, Descripción\t%s", files[i].name, files[i].desc);
+        if (i < size - 1)
+        {
+            printf(", ");
+        }
+    }
+    printf("]\n");
+}
+
 void print_node(struct TreeNode *node, int level, int expanded, char *side)
 {
     if (node == NULL)
@@ -581,7 +594,7 @@ void print_node(struct TreeNode *node, int level, int expanded, char *side)
     else
     {
         printf("|--%s - IP: %s, PORT: %d, \tFiles: ", node->username, node->hostname, node->port);
-        print_char_array(node->files, node->N_files);
+        print_file_array(node->files, node->N_files);
     }
 
     printf(ANSI_COLOR_RESET);

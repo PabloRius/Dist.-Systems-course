@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "ABB.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,20 +11,6 @@ void print_double_array(double *array, int size)
     for (int i = 0; i < size; i++)
     {
         printf("%.2f", array[i]);
-        if (i < size - 1)
-        {
-            printf(", ");
-        }
-    }
-    printf("]\n");
-}
-
-void print_char_array(char **array, int size)
-{
-    printf("[");
-    for (int i = 0; i < size; i++)
-    {
-        printf("%s", array[i]);
         if (i < size - 1)
         {
             printf(", ");

@@ -423,7 +423,7 @@ void publish_svc(void *arg)
         pthread_exit(NULL);
         exit(1);
     }
-    int ret = readLine(s_local, filename, MAX_LENGTH);
+    ret = readLine(s_local, filename, MAX_LENGTH);
     if (ret < 0)
     {
         // Error al recibir el mensaje del cliente con el nombre del fichero, le enviamos el código de error 3 y cerramos la conexión y el hilo
@@ -433,7 +433,7 @@ void publish_svc(void *arg)
         pthread_exit(NULL);
         exit(1);
     }
-    int ret = readLine(s_local, filedesc, MAX_LENGTH);
+    ret = readLine(s_local, filedesc, MAX_LENGTH);
     if (ret < 0)
     {
         // Error al recibir el mensaje del cliente con la descripción del fichero, le enviamos el código de error 3 y cerramos la conexión y el hilo
@@ -532,7 +532,7 @@ void delete_svc(void *arg)
         pthread_exit(NULL);
         exit(1);
     }
-    int ret = readLine(s_local, filename, MAX_LENGTH);
+    ret = readLine(s_local, filename, MAX_LENGTH);
     if (ret < 0)
     {
         // Error al recibir el mensaje del cliente con el nombre del fichero, le enviamos el código de error 3 y cerramos la conexión y el hilo
@@ -718,7 +718,7 @@ void list_content_svc(void *arg)
         pthread_exit(NULL);
         exit(1);
     }
-    int ret = readLine(s_local, username_req, MAX_LENGTH);
+    ret = readLine(s_local, username_req, MAX_LENGTH);
     if (ret < 0)
     {
         // Error al recibir el mensaje del cliente con el username, le enviamos el código de error 3 y cerramos la conexión y el hilo
@@ -729,10 +729,13 @@ void list_content_svc(void *arg)
         exit(1);
     }
 
+    // Varibales en las que guardar las respuestas de la estructura
+    int N_files = 0;
+    struct PublishedFile *file_lst;
     printf("s> OPERATION FROM %s\n", username);
     // Adquirimos el lock para acceder a la estructura de datos y pedir la lista de usuarios conectados
     pthread_mutex_lock(&m_abb);
-    int op_res = delete_file(tree, username, filename);
+    int op_res = list_content(tree, username, username_req, &N_files, &file_lst);
     print_tree(tree, 1);
     pthread_mutex_unlock(&m_abb);
     switch (op_res)
