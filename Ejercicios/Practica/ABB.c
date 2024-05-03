@@ -302,7 +302,7 @@ int connect_user(struct Tree *tree, char username[MAX_LENGTH], char hostname[MAX
     return tree_error("El usuario no existe", 1);
 }
 
-int publish_file(struct Tree *tree, char username[MAX_LENGTH], char *file)
+int disconnect_user(struct Tree *tree, char username[MAX_LENGTH])
 {
     unsigned long key = parse_key(username);
 
@@ -321,26 +321,63 @@ int publish_file(struct Tree *tree, char username[MAX_LENGTH], char *file)
         else
         {
             // La key que buscamos
-            if (currentNode->files == NULL)
+            // Primero comprobamos que el usuario esté conectado
+            if (currentNode->connected == true) {
+                currentNode->connected = false;
+                currentNode->port = -1;
+                strcpy(currentNode->hostname, "");
+                return 0;
+            }
+            return tree_error("El usuario no estaba conectado", 2);
+        }
+    }
+    return tree_error("El usuario no existe", 1);
+}
+
+int publish_file(struct Tree *tree, char username[MAX_LENGTH], char filename[MAX_LENGTH], char filedesc[MAX_LENGTH])
+{
+    unsigned long key = parse_key(username);
+
+    struct TreeNode *currentNode = tree->root;
+
+    while (currentNode != NULL)
+    {
+        if (key > currentNode->key)
+        {
+            currentNode = currentNode->right;
+        }
+        else if (key < currentNode->key)
+        {
+            currentNode = currentNode->left;
+        }
+        else
+        {
+            if(currentNode->connected == false)
             {
-                // Al introducir un fichero nuevo, primero se comprueba que no esté ya introducido
-                // si no existe, se reasigna la memoria reservada para el vector                
-                
-                currentNode->files = (char **)malloc(256 * sizeof(char));
-                currentNode->files[0] = (char *)malloc(strlen(file) + 1);
-                strcpy(currentNode->files[0], file);
+                return tree_error("El usuario no está conectado",2);
+            }
+            // La key que buscamos
+            if (currentNode->files == NULL)
+            {               
+                // Si el array de fichero está vacío, el nuevo se puede introducir directamente
+                currentNode->files = (struct PublishedFile **)malloc(sizeof(struct PublishedFile));
+                strcpy(currentNode->files[0].name, filename);
+                strcpy(currentNode->files[0].desc, filedesc);
                 currentNode->N_files = 1;
                 return 0;
             }
+            
+            // Al introducir un fichero nuevo, primero se comprueba que no esté ya introducido
+            // si no existe, se reasigna la memoria reservada para el vector 
             for (int i=0;i<currentNode->N_files; i++){
-                if(strcmp(currentNode->files[i], file) == 0){
+                if(strcmp(currentNode->files[i].name, filename) == 0){
                     return tree_error("El fichero ya está publicado", 3); // El file ya existe
                 }
             }
             currentNode->N_files ++;
-            currentNode->files = (char **)realloc(currentNode->files, currentNode->N_files * 256 * sizeof(char));
-            currentNode->files[currentNode->N_files - 1] = (char *)malloc(strlen(file) + 1);
-            strcpy(currentNode->files[currentNode->N_files - 1], file);
+            currentNode->files = realloc(currentNode->files, currentNode->N_files * sizeof(struct PublishedFile));
+            strcpy(currentNode->files[currentNode->N_files - 1].name, filename);
+            strcpy(currentNode->files[currentNode->N_files - 1].desc, filedesc);
             return 0;
         }
     }
@@ -366,20 +403,23 @@ int delete_file(struct Tree *tree, char username[MAX_LENGTH], char *file)
         else
         {
             // La key que buscamos
+            if (currentNode->connected == false)
+            {
+                return tree_error("El usuario no está conectado", 2);
+            }
             if (currentNode->files == NULL)
             {
-                return tree_error("El fichero no se ha publicado", 3);
+                return tree_error("El fichero no existe", 3);
             }
             else
             {
                 for (int i=0;i<currentNode->N_files; i++){
-                    if(strcmp(currentNode->files[i], file) == 0){
-                        free(currentNode->files[i]);
+                    if(strcmp(currentNode->files[i].name, file) == 0){
                         for (int j=i;j<currentNode->N_files - 1;j++) {
                             currentNode->files[j] = currentNode->files[j+1];
                         }
                         currentNode->N_files--;
-                        currentNode->files = (char **)realloc(currentNode->files, currentNode->N_files * 256 * sizeof(char));
+                        currentNode->files = realloc(currentNode->files, currentNode->N_files * 256 * sizeof(struct PublishedFile));
                         return 0;
                     }
                 }
@@ -388,6 +428,116 @@ int delete_file(struct Tree *tree, char username[MAX_LENGTH], char *file)
             }
 
             return 0;
+        }
+    }
+    return tree_error("El usuario no existe", 1);
+}
+
+int list_users(struct Tree *tree, char username[MAX_LENGTH], int *N_users_out, struct User **user_lst_out)
+{
+    unsigned long key = parse_key(username);
+
+    struct TreeNode *currentNode = tree->root;
+
+    if (tree == NULL || currentNode == NULL)
+    {
+        return tree_error("El árbol está vacío", 1);
+    }
+
+    *N_users_out = 0;
+    bool userexists = false;
+    bool userconnected = false;
+
+
+    list_users_traverse(currentNode, username, N_users_out, user_lst_out, &userexists, &userconnected);
+
+    if (userexists == false)
+    {
+        return tree_error("User doesn't exist", 1);
+    }
+    if (userexists == true && userconnected == false)
+    {
+        return tree_error("User isn't connected", 2);
+    }
+    return 0;
+
+}
+
+void list_users_traverse(struct TreeNode *node, char username[MAX_LENGTH], int *N_users_out, struct User **user_lst_out, bool *userexists, bool *userconnected)
+{
+    if (node == NULL)
+    {
+        return;
+    }
+
+    if (strcmp(node->username, username) == 0)
+    {
+        *userexists = true;
+        if (node->connected == true) {
+            *userconnected = true;
+        }
+        return;
+    }
+
+    if (node->connected == true)
+    {
+        *N_users_out	+= 1;
+        user_lst_out = realloc(user_lst_out, *N_users_out * sizeof(struct User *));
+        strcpy(user_lst_out[*N_users_out - 1]->username, node->username);
+        strcpy(user_lst_out[*N_users_out - 1]->hostname, node->hostname);
+        user_lst_out[*N_users_out - 1]->port = node->port;
+    }
+
+    list_users_traverse(node->left, username, N_users_out, user_lst_out, userexists, userconnected);
+    list_users_traverse(node->right, username, N_users_out, user_lst_out, userexists, userconnected);
+}
+
+int list_content(struct Tree *tree, char username[MAX_LENGTH], char username_req[MAX_LENGTH], int *N_files_out, struct PublishedFile *file_lst_out)
+{
+    unsigned long key = parse_key(username);
+    unsigned long key_req = parse_key(username_req);
+
+    struct TreeNode *currentNode = tree->root;
+
+    while (currentNode != NULL)
+    {
+        if (key > currentNode->key)
+        {
+            currentNode = currentNode->right;
+        }
+        else if (key < currentNode->key)
+        {
+            currentNode = currentNode->left;
+        }
+        else
+        {
+            // La key del usuario que busca
+            // Primero comprobamos que el usuario esté conectado
+            if (currentNode->connected == false) {
+                return tree_error("El usuario no existe", 3);
+            }
+            memcpy(file_lst_out, currentNode->files, currentNode->N_files * sizeof(struct PublishedFile));
+            *N_files_out = currentNode->N_files;
+        }
+    }
+    return tree_error("El usuario no existe", 1);
+
+    currentNode = tree->root;
+
+    while (currentNode != NULL)
+    {
+        if (key_req > currentNode->key)
+        {
+            currentNode = currentNode->right;
+        }
+        else if (key_req < currentNode->key)
+        {
+            currentNode = currentNode->left;
+        }
+        else
+        {
+            // La key del usuario que se busca
+            
         }
     }
     return tree_error("El usuario no existe", 1);

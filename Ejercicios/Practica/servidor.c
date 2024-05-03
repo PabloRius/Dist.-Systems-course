@@ -139,7 +139,7 @@ void unregister_svc(void *arg)
         exit(1);
     }
     printf("s> OPERATION FROM %s\n", username);
-    // Adquirimos el lock para acceder a la estructura de datos e introducir el nuevo usuario
+    // Adquirimos el lock para acceder a la estructura de datos y eliminar el usuario
     pthread_mutex_lock(&m_abb);
     int op_res = unregister_user(tree, username);
     print_tree(tree, 1);
@@ -256,7 +256,7 @@ void connect_svc(void *arg)
     char *clt_addr_ip = inet_ntoa(clt_addr.sin_addr);
     strcpy(hostname, clt_addr_ip);
     printf("s> OPERATION FROM %s\n", username);
-    // Adquirimos el lock para acceder a la estructura de datos e introducir el nuevo usuario
+    // Adquirimos el lock para acceder a la estructura de datos y cambiar el estado del usuario
     pthread_mutex_lock(&m_abb);
     int op_res = connect_user(tree, username, hostname, num);
     print_tree(tree, 1);
@@ -286,7 +286,485 @@ void connect_svc(void *arg)
     ret = sendMessage(s_local, &res, sizeof(char));
     if (ret < 0)
     {
+        res = '3';
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    close(s_local);
+    pthread_exit(NULL);
+    exit(1);
+}
+
+void disconnect_svc(void *arg)
+{
+    /**
+     * @brief Esta llamada permite a un usuario establecer su estado como desconectado en el sistema de intercambio de ficheros.
+     *
+     * @return int La función devuelve 0 en caso de éxito, 1 si el usuario no existe, 2 si el usuario no estaba conectado, 3 en cualquier otro caso.
+     * @retval 0 en caso de exito.
+     * @retval 1 si el usuario no existe.
+     * @retval 2 si el usuario no está conectado.
+     * @retval 3 en caso de cualquier otro error.
+     */
+
+    // Variable local en la que se copiará el descriptor del socket recibido
+    int s_local;
+
+    // El hilo adquiere el mutex para copiar el mensaje mientras el hilo principal espera a recibir una señal
+    pthread_mutex_lock(&m_msg);
+
+    s_local = (*(int *)arg);
+
+    // Avisamos al hilo principal de que ya se ha copiado lo que necesitábamos y puede continuar
+    mensaje_no_copiado = false;
+    pthread_cond_signal(&c_msg);
+    pthread_mutex_unlock(&m_msg);
+
+    // Variable que contiene el valor que se devolverá al cliente como resultado de la operación
+    char res = '0';
+
+    // Esperamos a que el cliente mande el resto de argumentos por la conexion que abrió y el hilo ha copiado localmente
+    char username[MAX_LENGTH];
+    int ret = readLine(s_local, username, MAX_LENGTH);
+    if (ret < 0)
+    {
+        // Error al recibir el mensaje del cliente con el username, le enviamos el código de error 3 y cerramos la conexión y el hilo
+        res = '3';
+        sendMessage(s_local, &res, sizeof(char));
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    printf("s> OPERATION FROM %s\n", username);
+    // Adquirimos el lock para acceder a la estructura de datos y cambiar el estado del usuairo usuario
+    pthread_mutex_lock(&m_abb);
+    int op_res = disconnect_user(tree, username);
+    print_tree(tree, 1);
+    pthread_mutex_unlock(&m_abb);
+    switch (op_res)
+    {
+    case 0:
+        res = '0';
+        break;
+    
+    case 1:
+        res = '1';
+        break;
+    
+    case 2:
         res = '2';
+        break;
+    
+    case 3:
+        res = '3';
+        break;
+    
+    default:
+        res = '3';
+        break;
+    }
+    ret = sendMessage(s_local, &res, sizeof(char));
+    if (ret < 0)
+    {
+        res = '3';
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    close(s_local);
+    pthread_exit(NULL);
+    exit(1);
+}
+
+void publish_svc(void *arg)
+{
+    /**
+     * @brief Esta llamada permite a un usuario publicar un fichero en el sistema de intercambio de ficheros.
+     *
+     * @return int La función devuelve 0 en caso de éxito, 1 si el usuario no existe, 2 si el usuario no está conectado, 3 si el fichero ya existe, 4 en cualquier otro caso.
+     * @retval 0 en caso de exito.
+     * @retval 1 si el usuario no existe.
+     * @retval 2 si el usuario no está conectado.
+     * @retval 3 si el fichero ya existe.
+     * @retval 4 en caso de cualquier otro error.
+     */
+
+    // Variable local en la que se copiará el descriptor del socket recibido
+    int s_local;
+
+    // El hilo adquiere el mutex para copiar el mensaje mientras el hilo principal espera a recibir una señal
+    pthread_mutex_lock(&m_msg);
+
+    s_local = (*(int *)arg);
+
+    // Avisamos al hilo principal de que ya se ha copiado lo que necesitábamos y puede continuar
+    mensaje_no_copiado = false;
+    pthread_cond_signal(&c_msg);
+    pthread_mutex_unlock(&m_msg);
+
+    // Variable que contiene el valor que se devolverá al cliente como resultado de la operación
+    char res = '0';
+
+    // Esperamos a que el cliente mande el resto de argumentos por la conexion que abrió y el hilo ha copiado localmente
+    char username[MAX_LENGTH];
+    char filename[MAX_LENGTH];
+    char filedesc[MAX_LENGTH];
+    int ret = readLine(s_local, username, MAX_LENGTH);
+    if (ret < 0)
+    {
+        // Error al recibir el mensaje del cliente con el username, le enviamos el código de error 3 y cerramos la conexión y el hilo
+        res = '4';
+        sendMessage(s_local, &res, sizeof(char));
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+    int ret = readLine(s_local, filename, MAX_LENGTH);
+    if (ret < 0)
+    {
+        // Error al recibir el mensaje del cliente con el nombre del fichero, le enviamos el código de error 3 y cerramos la conexión y el hilo
+        res = '4';
+        sendMessage(s_local, &res, sizeof(char));
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+    int ret = readLine(s_local, filedesc, MAX_LENGTH);
+    if (ret < 0)
+    {
+        // Error al recibir el mensaje del cliente con la descripción del fichero, le enviamos el código de error 3 y cerramos la conexión y el hilo
+        res = '4';
+        sendMessage(s_local, &res, sizeof(char));
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    printf("s> OPERATION FROM %s\n", username);
+    // Adquirimos el lock para acceder a la estructura de datos e introducir el nuevo fichero
+    pthread_mutex_lock(&m_abb);
+    int op_res = publish_file(tree, username, filename, filedesc);
+    print_tree(tree, 1);
+    pthread_mutex_unlock(&m_abb);
+    switch (op_res)
+    {
+    case 0:
+        res = '0';
+        break;
+    
+    case 1:
+        res = '1';
+        break;
+    
+    case 2:
+        res = '2';
+        break;
+    
+    case 3:
+        res = '3';
+        break;
+    
+    case 4:
+        res = '4';
+        break;
+    
+    default:
+        res = '4';
+        break;
+    }
+    ret = sendMessage(s_local, &res, sizeof(char));
+    if (ret < 0)
+    {
+        res = '4';
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    close(s_local);
+    pthread_exit(NULL);
+    exit(1);
+}
+
+void delete_svc(void *arg)
+{
+    /**
+     * @brief Esta llamada permite a un usuario eliminar un fichero del sistema de intercambio de ficheros.
+     *
+     * @return int La función devuelve 0 en caso de éxito, 1 si el usuario no existe, 2 si el usuario no está conectado, 3 si el fichero no existe, 4 en cualquier otro caso.
+     * @retval 0 en caso de exito.
+     * @retval 1 si el usuario no existe.
+     * @retval 2 si el usuario no está conectado.
+     * @retval 3 si el fichero no existe.
+     * @retval 4 en caso de cualquier otro error.
+     */
+
+    // Variable local en la que se copiará el descriptor del socket recibido
+    int s_local;
+
+    // El hilo adquiere el mutex para copiar el mensaje mientras el hilo principal espera a recibir una señal
+    pthread_mutex_lock(&m_msg);
+
+    s_local = (*(int *)arg);
+
+    // Avisamos al hilo principal de que ya se ha copiado lo que necesitábamos y puede continuar
+    mensaje_no_copiado = false;
+    pthread_cond_signal(&c_msg);
+    pthread_mutex_unlock(&m_msg);
+
+    // Variable que contiene el valor que se devolverá al cliente como resultado de la operación
+    char res = '0';
+
+    // Esperamos a que el cliente mande el resto de argumentos por la conexion que abrió y el hilo ha copiado localmente
+    char username[MAX_LENGTH];
+    char filename[MAX_LENGTH];
+    int ret = readLine(s_local, username, MAX_LENGTH);
+    if (ret < 0)
+    {
+        // Error al recibir el mensaje del cliente con el username, le enviamos el código de error 3 y cerramos la conexión y el hilo
+        res = '4';
+        sendMessage(s_local, &res, sizeof(char));
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+    int ret = readLine(s_local, filename, MAX_LENGTH);
+    if (ret < 0)
+    {
+        // Error al recibir el mensaje del cliente con el nombre del fichero, le enviamos el código de error 3 y cerramos la conexión y el hilo
+        res = '4';
+        sendMessage(s_local, &res, sizeof(char));
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    printf("s> OPERATION FROM %s\n", username);
+    // Adquirimos el lock para acceder a la estructura de datos y eliminar el fichero
+    pthread_mutex_lock(&m_abb);
+    int op_res = delete_file(tree, username, filename);
+    print_tree(tree, 1);
+    pthread_mutex_unlock(&m_abb);
+    switch (op_res)
+    {
+    case 0:
+        res = '0';
+        break;
+    
+    case 1:
+        res = '1';
+        break;
+    
+    case 2:
+        res = '2';
+        break;
+    
+    case 3:
+        res = '3';
+        break;
+    
+    case 4:
+        res = '4';
+        break;
+    
+    default:
+        res = '4';
+        break;
+    }
+    ret = sendMessage(s_local, &res, sizeof(char));
+    if (ret < 0)
+    {
+        res = '4';
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    close(s_local);
+    pthread_exit(NULL);
+    exit(1);
+}
+
+void list_users_svc(void *arg)
+{
+    /**
+     * @brief Esta llamada permite a un usuario conocer una lista con los usuarios conectados al sistema junto a sus direcciones IP y puerto de escucha.
+     *
+     * @return int La función devuelve 0 en caso de éxito, 1 si el usuario no existe, 2 si el usuario no está conectado, 3 si el fichero no existe, 4 en cualquier otro caso.
+     * @retval 0 en caso de exito.
+     *          En caso de éxito también enviará una serie de mensajes con los clientes conectados y sus datos.
+     * @retval 1 si el usuario no existe.
+     * @retval 2 si el usuario no está conectado.
+     * @retval 3 en caso de cualquier otro error.
+     */
+
+    // Variable local en la que se copiará el descriptor del socket recibido
+    int s_local;
+
+    // El hilo adquiere el mutex para copiar el mensaje mientras el hilo principal espera a recibir una señal
+    pthread_mutex_lock(&m_msg);
+
+    s_local = (*(int *)arg);
+
+    // Avisamos al hilo principal de que ya se ha copiado lo que necesitábamos y puede continuar
+    mensaje_no_copiado = false;
+    pthread_cond_signal(&c_msg);
+    pthread_mutex_unlock(&m_msg);
+
+    // Variable que contiene el valor que se devolverá al cliente como resultado de la operación
+    char res = '0';
+
+    // Esperamos a que el cliente mande el resto de argumentos por la conexion que abrió y el hilo ha copiado localmente
+    char username[MAX_LENGTH];
+    int ret = readLine(s_local, username, MAX_LENGTH);
+    if (ret < 0)
+    {
+        // Error al recibir el mensaje del cliente con el username, le enviamos el código de error 3 y cerramos la conexión y el hilo
+        res = '3';
+        sendMessage(s_local, &res, sizeof(char));
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    printf("s> OPERATION FROM %s\n", username);
+    // Adquirimos el lock para acceder a la estructura de datos y pedir la lista de usuarios conectados
+    pthread_mutex_lock(&m_abb);
+    int res_N_Users;
+    struct User *user_lst;
+    int op_res = list_users(tree, username, &res_N_Users, &user_lst);
+    print_tree(tree, 1);
+    pthread_mutex_unlock(&m_abb);
+    switch (op_res)
+    {
+    case 0:
+        res = '0';
+        break;
+    
+    case 1:
+        res = '1';
+        break;
+    
+    case 2:
+        res = '2';
+        break;
+    
+    case 3:
+        res = '3';
+        break;
+    
+    default:
+        res = '3';
+        break;
+    }
+    ret = sendMessage(s_local, &res, sizeof(char));
+    if (ret < 0)
+    {
+        res = '3';
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    close(s_local);
+    pthread_exit(NULL);
+    exit(1);
+}
+
+void list_content_svc(void *arg)
+{
+    /**
+     * @brief Esta llamada permite a un usuario conocer una lista con los ficheros publicados por un usuario.
+     *
+     * @return int La función devuelve 0 en caso de éxito, 1 si el usuario no existe, 2 si el usuario no está conectado, 3 si el fichero no existe, 4 en cualquier otro caso.
+     * @retval 0 en caso de exito.
+     *          En caso de éxito también enviará una serie de mensajes con los clientes ficheros en cuestión.
+     * @retval 1 si el usuario que hace la petición no existe.
+     * @retval 2 si el usuario que hace la petición no está conectado.
+     * @retval 3 si el usuario sobre el que se hace la petición no existe.
+     * @retval 4 en caso de cualquier otro error.
+     */
+
+    // Variable local en la que se copiará el descriptor del socket recibido
+    int s_local;
+
+    // El hilo adquiere el mutex para copiar el mensaje mientras el hilo principal espera a recibir una señal
+    pthread_mutex_lock(&m_msg);
+
+    s_local = (*(int *)arg);
+
+    // Avisamos al hilo principal de que ya se ha copiado lo que necesitábamos y puede continuar
+    mensaje_no_copiado = false;
+    pthread_cond_signal(&c_msg);
+    pthread_mutex_unlock(&m_msg);
+
+    // Variable que contiene el valor que se devolverá al cliente como resultado de la operación
+    char res = '0';
+
+    // Esperamos a que el cliente mande el resto de argumentos por la conexion que abrió y el hilo ha copiado localmente
+    char username[MAX_LENGTH];
+    char username_req[MAX_LENGTH];
+    int ret = readLine(s_local, username, MAX_LENGTH);
+    if (ret < 0)
+    {
+        // Error al recibir el mensaje del cliente con el username, le enviamos el código de error 3 y cerramos la conexión y el hilo
+        res = '4';
+        sendMessage(s_local, &res, sizeof(char));
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+    int ret = readLine(s_local, username_req, MAX_LENGTH);
+    if (ret < 0)
+    {
+        // Error al recibir el mensaje del cliente con el username, le enviamos el código de error 3 y cerramos la conexión y el hilo
+        res = '4';
+        sendMessage(s_local, &res, sizeof(char));
+        close(s_local);
+        pthread_exit(NULL);
+        exit(1);
+    }
+
+    printf("s> OPERATION FROM %s\n", username);
+    // Adquirimos el lock para acceder a la estructura de datos y pedir la lista de usuarios conectados
+    pthread_mutex_lock(&m_abb);
+    int op_res = delete_file(tree, username, filename);
+    print_tree(tree, 1);
+    pthread_mutex_unlock(&m_abb);
+    switch (op_res)
+    {
+    case 0:
+        res = '0';
+        break;
+    
+    case 1:
+        res = '1';
+        break;
+    
+    case 2:
+        res = '2';
+        break;
+    
+    case 3:
+        res = '3';
+        break;
+    
+    case 4:
+        res = '4';
+        break;
+    
+    default:
+        res = '4';
+        break;
+    }
+    ret = sendMessage(s_local, &res, sizeof(char));
+    if (ret < 0)
+    {
+        res = '4';
         close(s_local);
         pthread_exit(NULL);
         exit(1);
@@ -430,6 +908,54 @@ int main(int argc, char **argv)
                 }else if (strcmp(op, "CONNECT") == 0)
                 {
                     if (pthread_create(&thid, &attr, (void *)connect_svc, (void *)&sc) == 0)
+                    {
+                        pthread_mutex_lock(&m_msg);
+                        while (mensaje_no_copiado)
+                        {
+                            pthread_cond_wait(&c_msg, &m_msg);
+                        }
+                        mensaje_no_copiado = true;
+                        pthread_mutex_unlock(&m_msg);
+                    }
+                }else if (strcmp(op, "DISCONNECT") == 0)
+                {
+                    if (pthread_create(&thid, &attr, (void *)disconnect_svc, (void *)&sc) == 0)
+                    {
+                        pthread_mutex_lock(&m_msg);
+                        while (mensaje_no_copiado)
+                        {
+                            pthread_cond_wait(&c_msg, &m_msg);
+                        }
+                        mensaje_no_copiado = true;
+                        pthread_mutex_unlock(&m_msg);
+                    }
+                }else if (strcmp(op, "PUBLISH") == 0)
+                {
+                    if (pthread_create(&thid, &attr, (void *)publish_svc, (void *)&sc) == 0)
+                    {
+                        pthread_mutex_lock(&m_msg);
+                        while (mensaje_no_copiado)
+                        {
+                            pthread_cond_wait(&c_msg, &m_msg);
+                        }
+                        mensaje_no_copiado = true;
+                        pthread_mutex_unlock(&m_msg);
+                    }
+                }else if (strcmp(op, "DELETE") == 0)
+                {
+                    if (pthread_create(&thid, &attr, (void *)delete_svc, (void *)&sc) == 0)
+                    {
+                        pthread_mutex_lock(&m_msg);
+                        while (mensaje_no_copiado)
+                        {
+                            pthread_cond_wait(&c_msg, &m_msg);
+                        }
+                        mensaje_no_copiado = true;
+                        pthread_mutex_unlock(&m_msg);
+                    }
+                }else if (strcmp(op, "LIST_USERS") == 0)
+                {
+                    if (pthread_create(&thid, &attr, (void *)list_users_svc, (void *)&sc) == 0)
                     {
                         pthread_mutex_lock(&m_msg);
                         while (mensaje_no_copiado)

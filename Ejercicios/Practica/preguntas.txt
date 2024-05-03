@@ -1,5 +1,6 @@
 1 - IP del cliente 0.0.0.0 esta bien?
 2 - Connect en el cliente, un cliente en ejecución, puede tener varios connect al mismo tiempo? Por tanto varios hilos con sockets escuchando de otros clientes
+    Cada cliente.py atiende sólo a un usuario
 3 - Prioridad en el connect y disconnect, que es mejor:
     - Crear el thread siempre que se llame a la función connect independientemente de la respuesta del servidor
     - Llamar a la función connect, esperar a un resultado positivo del servidor y entonces crear el thread de escucha

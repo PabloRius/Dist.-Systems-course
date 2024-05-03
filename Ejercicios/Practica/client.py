@@ -103,6 +103,7 @@ class client :
         message = f'{port}\0'
         sock.sendall(message.encode())
 
+        # TODO: Hay que crear el hilo independiente para no tener que hacer un join
         client._threads[user] = threading.Thread(target=client.sock_listen, args=(s_socket,))
         client._threads[user].start()
 
