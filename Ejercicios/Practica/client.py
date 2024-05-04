@@ -87,26 +87,43 @@ class client :
                     print(msg)
                 finally:
                     conn.close()
+                    client._user_socket.close()
             except:
+                client._user_socket.close()
                 break
     
     @staticmethod
     def  connect(user) :
+        if(client._user_connected):
+            # Cada terminal gestiona un único cliente, por tanto si ya hay un cliente conectado a esta terminal,
+            # no podemos permitir que uno nuevo se conecte
+            # Lo tratamos como un error genérico ya que puede que el usuario esté o no conectado desde otra terminal, o puede que no exista
+            print("c> CONNECT FAIL")
+            return client.RC.ERROR
+
+        # Creamos el socket por el que el cliente va a escuchar peticiones de otros clientes
+        client._user_socket = socket.socket()
+        # Dejamos que la librería escoja un puerto libre y luego con getsockname() extraemos el número de este
+        client._user_socket.bind(('',0))
+        _, port = client._user_socket.getsockname()
+        
+        # Crear socket y conectar al servidor
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.connect((client._server, client._port))
+
+        # Enviar comando "CONNECT"
         message = 'CONNECT\0'
         sock.sendall(message.encode())
+        
+        # Enviar el nombre del usuario
         message = f'{user}\0'
         sock.sendall(message.encode())
-        # Creamos el socket por el que el cliente va a escuchar peticiones de otros clientes
-        client._user_socket = socket.socket()
-        client._user_socket.bind(('',0))
-        _, port = client._user_socket.getsockname()
+        
+        # Enviar el puerto de escucha
         message = f'{port}\0'
         sock.sendall(message.encode())
 
-        # TODO: Hay que crear el hilo independiente para no tener que hacer un join
         client._user_connected = user
         client._user_thread = threading.Thread(target=client.sock_listen)
         client._user_thread.start()
@@ -119,23 +136,23 @@ class client :
         elif res == 1:
             # Si el servidor no ha procesado la operación correctamente, se revierte la creación del socket e hilo
             print("c> CONNECT FAIL, USER DOES NOT EXIST")
+            # No llamamos explícitamente a disconnect ya que no queremos que se desconecte al usuario del sistema si su sesión está iniciada desde otro terminal
             client._user_connected = ""
             client._user_socket.close()
-            client._user_thread.join()
             return client.RC.USER_ERROR
         elif res == 2:
             # Si el servidor no ha procesado la operación correctamente, se revierte la creación del socket e hilo
             print("c> USER ALREADY CONNECTED")
+            # No llamamos explícitamente a disconnect ya que no queremos que se desconecte al usuario del sistema si su sesión está iniciada desde otro terminal
             client._user_connected = ""
             client._user_socket.close()
-            client._user_thread.join()
             return client.RC.USER_ERROR
         else:
             # Si el servidor no ha procesado la operación correctamente, se revierte la creación del socket e hilo
             print("c> CONNECT FAIL")
+            # No llamamos explícitamente a disconnect ya que no queremos que se desconecte al usuario del sistema si su sesión está iniciada desde otro terminal
             client._user_connected = ""
             client._user_socket.close()
-            client._user_thread.join()
             return client.RC.ERROR
 
     @staticmethod
@@ -180,7 +197,22 @@ class client :
         return client.RC.ERROR
     
     @staticmethod
-    def  disconnect(user) :       
+    def  disconnect(user) :
+        # Dado que el programa guarda internamente los datos del cliente conectado, comprobaremos si el cliente que se quiere desconectar 
+        # es el mismo que está conectado
+        if(user != client._user_connected):
+            # Lo tratamos como un error genérico, ya que puede que el usuario exista y esté conectado, sólo que desde otra terminal
+            print("c> DISCONNECT FAIL")
+            return client.RC.ERROR
+        
+        # El hilo de escucha se detendrá independientemente de la respuesta del servidor
+        if (client._user_socket):
+            # Si el cliente se detuvo 
+            client._user_connected = ""
+            client._user_socket.close()
+        # No es necesario hacer un join al hilo, ya que al cerrar el socket por el que escucha, este capturará una excepción y morirá 
+        # Por defecto, python crea los hilos independientes, por tanto, el mismo programa se encarga de limpiarlos al morir
+
         # Crear socket y conectar al servidor
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((client._server, client._port))
@@ -196,9 +228,6 @@ class client :
 
         # Interpretar la respuesta del servidor
         if res == 0:
-            # Si el servidor responde correctamente a la desconexión, se realiza la operación en el cliente
-            client._user_socket.close()
-            client._user_thread.join()
             print("c> DISCONNECT OK")
         elif res == 1:
             print("c> DISCONNECT FAIL / USER DOES NOT EXIST")
@@ -206,6 +235,7 @@ class client :
             print("c> DISCONNECT FAIL / USER NOT CONNECTED")
         else:
             print("c> DISCONNECT FAIL")
+            
         return client.RC.ERROR
 
     @staticmethod
@@ -219,11 +249,10 @@ class client :
         sock.sendall(message.encode())
 
         # Enviar el nombre del usuario
-        sock.sendall(f'{user}\0'.encode())
+        sock.sendall(f'{client._user_connected}\0'.encode())
 
         # Enviar el nombre del archivo (asegurarse que no exceda 256 bytes y no tenga espacios)
-        if len(fileName) > 256 or ' ' in fileName:
-            print("c> DELETE FAIL, FILE NAME INVALID")
+        if len(fileName) > 256:
             return client.RC.ERROR
         sock.sendall(f'{fileName}\0'.encode())
 
@@ -254,7 +283,7 @@ class client :
         sock.sendall(message.encode())
 
         # Enviar el nombre del usuario que realiza la operación
-        sock.sendall(f'{user}\0'.encode())
+        sock.sendall(f'{client._user_connected}\0'.encode())
 
         # Leer la respuesta del servidor
         res = client.readResponse(sock)
@@ -263,12 +292,15 @@ class client :
         if res == 0:
             # Leer el número de usuarios que se enviarán
             num_users = int(client.readLine(sock))
+            print(num_users)
             print("c> LIST_USERS OK")
+            end_str = ""
             for _ in range(num_users):
                 username = client.readLine(sock)
                 ip = client.readLine(sock)
                 port = client.readLine(sock)
-                print(f"{username} {ip} {port}")
+                end_str += f"\t{username}\t{ip}\t{port}\n"
+            print(end_str)
         elif res == 1:
             print("c> LIST_USERS FAIL, USER DOES NOT EXIST")
         elif res == 2:
@@ -288,7 +320,7 @@ class client :
         sock.sendall(message.encode())
 
         # Enviar el nombre del usuario que realiza la operación
-        sock.sendall(f'{requesting_user}\0'.encode())
+        sock.sendall(f'{client._user_connected}\0'.encode())
 
         # Enviar el nombre del usuario cuyo contenido se desea conocer
         sock.sendall(f'{user}\0'.encode())
@@ -299,12 +331,14 @@ class client :
         # Manejar la respuesta inicial
         if res == 0:
             # Leer el número de ficheros que se enviarán
-            num_files = int(client.readLine(sock))
             print("c> LIST_CONTENT OK")
+            num_files = int(client.readLine(sock))
+            end_str = ""
             for _ in range(num_files):
                 file_name = client.readLine(sock)
                 description = client.readLine(sock)
-                print(f'{file_name} "{description}"')
+                end_str += f'\t{file_name}\t{description}\n'
+            print(end_str)
         elif res == 1:
             print("c> LIST_CONTENT FAIL, USER DOES NOT EXIST")
         elif res == 2:
@@ -420,11 +454,18 @@ class client :
 
                     elif(line[0]=="QUIT") :
                         if (len(line) == 1) :
+                            if (client._user_connected):
+                                client.disconnect(client._user_connected)
                             break
                         else :
                             print("Syntax error. Use: QUIT")
                     else :
                         print("Error: command " + line[0] + " not valid.")
+            except KeyboardInterrupt:
+                print("Keyboard Interrupting the program")
+                if(client._user_connected):
+                    client.disconnect(client._user_connected)
+                break
             except Exception as e:
                 print("Exception: " + str(e))
 
@@ -467,8 +508,8 @@ class client :
 
         #  Write code here
         client.shell()
-        if(client._user_thread):
-            client._user_thread
+        if(client._user_socket):
+            client._user_socket.close()
         print("+++ FINISHED +++")
     
 

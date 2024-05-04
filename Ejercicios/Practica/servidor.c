@@ -637,7 +637,6 @@ void list_users_svc(void *arg)
     int res_N_Users;
     struct User *user_lst;
     int op_res = list_users(tree, username, &res_N_Users, &user_lst);
-    print_tree(tree, 1);
     pthread_mutex_unlock(&m_abb);
     switch (op_res)
     {
@@ -668,6 +667,49 @@ void list_users_svc(void *arg)
         close(s_local);
         pthread_exit(NULL);
         exit(1);
+    }
+    
+    if (res == '0')
+    {
+        char n_users_str[MAX_LENGTH];
+        char port_str[MAX_LENGTH];
+        sprintf(n_users_str, "%d", res_N_Users);
+        ret = writeLine(s_local, n_users_str);
+        if (ret < 0)
+        {
+            res = '3';
+            close(s_local);
+            pthread_exit(NULL);
+            exit(1);
+        }
+        for(int i=0;i<res_N_Users;i++)
+        {
+            ret = writeLine(s_local, user_lst[i].username);
+            if (ret < 0)
+            {
+                res = '3';
+                close(s_local);
+                pthread_exit(NULL);
+                exit(1);
+            }
+            ret = writeLine(s_local, user_lst[i].hostname);
+            if (ret < 0)
+            {
+                res = '3';
+                close(s_local);
+                pthread_exit(NULL);
+                exit(1);
+            }
+            sprintf(port_str, "%d", user_lst[i].port);
+            ret = writeLine(s_local, port_str); 
+            if (ret < 0)
+            {
+                res = '3';
+                close(s_local);
+                pthread_exit(NULL);
+                exit(1);
+            }
+        }
     }
 
     close(s_local);
@@ -731,12 +773,11 @@ void list_content_svc(void *arg)
 
     // Varibales en las que guardar las respuestas de la estructura
     int N_files = 0;
-    struct PublishedFile *file_lst;
+    struct PublishedFile *file_lst = NULL;
     printf("s> OPERATION FROM %s\n", username);
     // Adquirimos el lock para acceder a la estructura de datos y pedir la lista de usuarios conectados
     pthread_mutex_lock(&m_abb);
     int op_res = list_content(tree, username, username_req, &N_files, &file_lst);
-    print_tree(tree, 1);
     pthread_mutex_unlock(&m_abb);
     switch (op_res)
     {
@@ -771,6 +812,39 @@ void list_content_svc(void *arg)
         close(s_local);
         pthread_exit(NULL);
         exit(1);
+    }
+    
+    if (res == '0')
+    {
+        char content_len[MAX_LENGTH];
+        sprintf(content_len, "%d", N_files);
+        ret = writeLine(s_local, content_len);
+        if (ret < 0)
+        {
+            res = '3';
+            close(s_local);
+            pthread_exit(NULL);
+            exit(1);
+        }
+        for(int i=0;i<N_files;i++)
+        {
+            ret = writeLine(s_local, file_lst[i].name);
+            if (ret < 0)
+            {
+                res = '3';
+                close(s_local);
+                pthread_exit(NULL);
+                exit(1);
+            }
+            ret = writeLine(s_local, file_lst[i].desc);
+            if (ret < 0)
+            {
+                res = '3';
+                close(s_local);
+                pthread_exit(NULL);
+                exit(1);
+            }
+        }
     }
 
     close(s_local);
@@ -959,6 +1033,18 @@ int main(int argc, char **argv)
                 }else if (strcmp(op, "LIST_USERS") == 0)
                 {
                     if (pthread_create(&thid, &attr, (void *)list_users_svc, (void *)&sc) == 0)
+                    {
+                        pthread_mutex_lock(&m_msg);
+                        while (mensaje_no_copiado)
+                        {
+                            pthread_cond_wait(&c_msg, &m_msg);
+                        }
+                        mensaje_no_copiado = true;
+                        pthread_mutex_unlock(&m_msg);
+                    }
+                }else if (strcmp(op, "LIST_CONTENT") == 0)
+                {
+                    if (pthread_create(&thid, &attr, (void *)list_content_svc, (void *)&sc) == 0)
                     {
                         pthread_mutex_lock(&m_msg);
                         while (mensaje_no_copiado)

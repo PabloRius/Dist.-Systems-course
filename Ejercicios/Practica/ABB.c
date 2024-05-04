@@ -13,6 +13,70 @@ int tree_error(char *desc, int errNo)
     return errNo;
 }
 
+
+
+void print_tree(struct Tree *tree, int expanded)
+{
+    if (tree->root == NULL)
+    {
+        printf("The tree is empty\n");
+    }
+    else
+    {
+        print_node(tree->root, 0, expanded, "c");
+    }
+}
+
+void print_file_array(struct PublishedFile *files, int size)
+{
+    printf("[ ");
+    for (int i = 0; i < size; i++)
+    {
+        printf("%s (%s)", files[i].name, files[i].desc);
+        if (i < size - 1)
+        {
+            printf(", ");
+        }
+    }
+    printf(" ]\n");
+}
+
+void print_node(struct TreeNode *node, int level, int expanded, char *side)
+{
+    if (node == NULL)
+    {
+        return;
+    }
+    if (strcmp(side, "l") == 0)
+    {
+        printf(ANSI_COLOR_BLUE);
+    }
+    else if (strcmp(side, "r") == 0)
+    {
+        printf(ANSI_COLOR_RED);
+    }
+
+    for (int i = 0; i < level; i++)
+    {
+        printf("  "); // Dos espacios por nivel de profundidad
+    }
+    if (expanded == 0)
+    {
+        printf("|--%s\n", node->username);
+    }
+    else
+    {
+        printf("|--%s - IP: %s, PORT: %d, Files: ", node->username, node->hostname, node->port);
+        print_file_array(node->files, node->N_files);
+    }
+
+    printf(ANSI_COLOR_RESET);
+
+    // Imprimir los hijos recursivamente con un nivel de indentación adicional
+    print_node(node->left, level + 1, expanded, "l");
+    print_node(node->right, level + 1, expanded, "r");
+}
+
 unsigned long parse_key(char *username){
     unsigned long hash = 5381;
     int c;
@@ -447,16 +511,23 @@ void list_users_traverse(struct TreeNode *node, char username[MAX_LENGTH], int *
         if (node->connected == true) {
             *userconnected = true;
         }
-        return;
     }
 
-    if (node->connected == true)
+    if (node->connected == true && strcmp(node->username, username) != 0)
     {
-        *N_users_out	+= 1;
-        user_lst_out = realloc(user_lst_out, *N_users_out * sizeof(struct User *));
-        strcpy(user_lst_out[*N_users_out - 1]->username, node->username);
-        strcpy(user_lst_out[*N_users_out - 1]->hostname, node->hostname);
-        user_lst_out[*N_users_out - 1]->port = node->port;
+        (*N_users_out)++;
+        if (*user_lst_out == NULL)
+        {
+            *user_lst_out = (struct User *)malloc(sizeof(struct User));
+            strcpy((*user_lst_out)[0].username, node->username);
+            strcpy((*user_lst_out)[0].hostname, node->hostname);
+            (*user_lst_out)[0].port = node->port;
+        } else {
+            // *user_lst_out = (struct User *)realloc(*user_lst_out, *N_users_out * sizeof(struct User));
+            strcpy((*user_lst_out)[*N_users_out - 1].username, node->username);
+            strcpy((*user_lst_out)[*N_users_out - 1].hostname, node->hostname);
+            (*user_lst_out)[*N_users_out - 1].port = node->port;
+        }
     }
 
     list_users_traverse(node->left, username, N_users_out, user_lst_out, userexists, userconnected);
@@ -491,11 +562,10 @@ int list_users(struct Tree *tree, char username[MAX_LENGTH], int *N_users_out, s
 
 }
 
-int list_content(struct Tree *tree, char username[MAX_LENGTH], char username_req[MAX_LENGTH], int *N_files_out, struct PublishedFile **file_lst_out)
+int is_user_connected(struct Tree *tree, char username[MAX_LENGTH])
 {
     unsigned long key = parse_key(username);
-    unsigned long key_req = parse_key(username_req);
-
+    
     struct TreeNode *currentNode = tree->root;
 
     while (currentNode != NULL)
@@ -511,17 +581,23 @@ int list_content(struct Tree *tree, char username[MAX_LENGTH], char username_req
         else
         {
             // La key del usuario que busca
-            // Primero comprobamos que el usuario esté conectado
             if (currentNode->connected == false) {
                 return tree_error("El usuario no existe", 3);
             }
-            memcpy(file_lst_out, currentNode->files, currentNode->N_files * sizeof(struct PublishedFile));
-            *N_files_out = currentNode->N_files;
+            return 0;
         }
     }
     return tree_error("El usuario no existe", 1);
+}
 
-    currentNode = tree->root;
+int list_content(struct Tree *tree, char username[MAX_LENGTH], char username_req[MAX_LENGTH], int *N_files_out, struct PublishedFile **file_lst_out)
+{
+    unsigned long key_req = parse_key(username_req);
+
+    int user_connected = is_user_connected(tree, username);
+    if(user_connected != 0) { return user_connected; }
+
+    struct TreeNode *currentNode = tree->root;
 
     while (currentNode != NULL)
     {
@@ -535,71 +611,24 @@ int list_content(struct Tree *tree, char username[MAX_LENGTH], char username_req
         }
         else
         {
-            // La key del usuario que se busca
-            
+            *N_files_out = currentNode->N_files;
+            if(N_files_out == NULL || file_lst_out == NULL)
+            {
+                return tree_error("Los punteros no está inicializados", 4);
+            }
+            if (*file_lst_out != NULL) {
+                free(*file_lst_out);
+            }
+            *file_lst_out = (struct PublishedFile *)malloc(sizeof(struct PublishedFile) * (*N_files_out));
+            if(*file_lst_out == NULL)
+            {
+                return tree_error("Error al asignar memoria para los archivos", 4);
+            }
+            memcpy(*file_lst_out, currentNode->files, sizeof(struct PublishedFile) * (*N_files_out));
+            print_file_array(*file_lst_out, *N_files_out);
+            return 0;            
         }
     }
+
     return tree_error("El usuario no existe", 1);
-}
-
-void print_tree(struct Tree *tree, int expanded)
-{
-    if (tree->root == NULL)
-    {
-        printf("The tree is empty\n");
-    }
-    else
-    {
-        print_node(tree->root, 0, expanded, "c");
-    }
-}
-
-void print_file_array(struct PublishedFile *files, int size)
-{
-    printf("[");
-    for (int i = 0; i < size; i++)
-    {
-        printf("Fichero: \t%s, Descripción\t%s", files[i].name, files[i].desc);
-        if (i < size - 1)
-        {
-            printf(", ");
-        }
-    }
-    printf("]\n");
-}
-
-void print_node(struct TreeNode *node, int level, int expanded, char *side)
-{
-    if (node == NULL)
-    {
-        return;
-    }
-    if (strcmp(side, "l") == 0)
-    {
-        printf(ANSI_COLOR_BLUE);
-    }
-    else if (strcmp(side, "r") == 0)
-    {
-        printf(ANSI_COLOR_RED);
-    }
-
-    for (int i = 0; i < level; i++)
-    {
-        printf("  "); // Dos espacios por nivel de profundidad
-    }
-    if (expanded == 0)
-    {
-        printf("|--%s\n", node->username);
-    }
-    else
-    {
-        printf("|--%s - IP: %s, PORT: %d, \tFiles: ", node->username, node->hostname, node->port);
-        print_file_array(node->files, node->N_files);
-    }
-
-    printf(ANSI_COLOR_RESET);
-
-    // Imprimir los hijos recursivamente con un nivel de indentación adicional
-    print_node(node->left, level + 1, expanded, "l");
-    print_node(node->right, level + 1, expanded, "r");
 }
