@@ -2,6 +2,14 @@ from enum import Enum
 import argparse
 import socket
 import threading
+import os
+
+# TODO: alinear los códigos devueltos por las funciones con el error/output que resulta
+
+class user :
+    def __init__(self, hostname, port) -> None:
+        self.hostname   = hostname
+        self.port       = port
 
 class client :
 
@@ -20,6 +28,8 @@ class client :
     _user_connected:str = ""
     _user_thread:threading.Thread
     _user_socket:socket.socket
+
+    _users_lst = {}
 
     # ******************** METHODS *******************
     @staticmethod
@@ -83,12 +93,37 @@ class client :
             try:
                 conn, _ = client._user_socket.accept()
                 try:
-                    msg = client.readLine(client._user_socket)
-                    print(msg)
+                    op = client.readLine(conn)
+                    filename = client.readLine(conn)
+                    if (op == "GET_FILE"):
+                        file_path = os.path.join(os.getcwd(), filename)
+                        if (os.path.exists(file_path) and (os.path.isfile(file_path))):
+                            # TODO: Comprobar que el fichero está publicado en el perfil del usuario antes de mandarlo
+                            # Para evitar un injection attack
+                            conn.sendall("0\0".encode())
+                            try:
+                                with open(file_path, 'rb') as file:
+                                    conn.sendfile(file)
+                            except:
+                                # Error durante el envío del fichero 
+                                conn.sendall("2\0".encode())
+                        else:
+                            # TODO: El error no1 debería devolverse si el fichero no se encuentra como subido al perfil del usuario
+                            # TODO: Si este está subido pero en local no existe, debería ser error no2
+                            # El fichero en cuestión no se encuentra en el directorio o no existe
+                            conn.sendall("1\0".encode())
+                    else:
+                        # La oepración enviada es inválida
+                        conn.sendall("2\0".encode())
+                except:
+                    # Error durante la operación
+                    conn.sendall("2\0".encode())
                 finally:
+                    # Se termina la operación y se cierra la conexión abierta
                     conn.close()
-                    client._user_socket.close()
-            except:
+            except Exception as e:
+                # Utilizaremos una excepción forzada contra el connect del socket para poder 
+                # detener la ejecución del hilo
                 client._user_socket.close()
                 break
     
@@ -292,15 +327,14 @@ class client :
         if res == 0:
             # Leer el número de usuarios que se enviarán
             num_users = int(client.readLine(sock))
-            print(num_users)
             print("c> LIST_USERS OK")
-            end_str = ""
+            new_users_lst = {}
             for _ in range(num_users):
                 username = client.readLine(sock)
                 ip = client.readLine(sock)
                 port = client.readLine(sock)
-                end_str += f"\t{username}\t{ip}\t{port}\n"
-            print(end_str)
+                new_users_lst[username] = user(ip, port)
+            client._users_lst = new_users_lst
         elif res == 1:
             print("c> LIST_USERS FAIL, USER DOES NOT EXIST")
         elif res == 2:
@@ -333,12 +367,11 @@ class client :
             # Leer el número de ficheros que se enviarán
             print("c> LIST_CONTENT OK")
             num_files = int(client.readLine(sock))
-            end_str = ""
             for _ in range(num_files):
                 file_name = client.readLine(sock)
                 description = client.readLine(sock)
-                end_str += f'\t{file_name}\t{description}\n'
-            print(end_str)
+                print(f'\t{file_name}\t{description}')
+                
         elif res == 1:
             print("c> LIST_CONTENT FAIL, USER DOES NOT EXIST")
         elif res == 2:
@@ -352,10 +385,26 @@ class client :
     @staticmethod
     def  getfile(user,  remote_FileName,  local_FileName) :
 
-         # Crear un socket TCP/IP
+        # Crear un socket TCP/IP
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # Extraer los parámetros de conexión del cliente remoto
+        try:
+            # Estos parámetros se actualizan al hacer un list_users, en el caso de no haberlo hecho antes se hará de forma automática
+            # para intentar extraer los datos de conexión del cliente remoto desde el servidor
+            rmt_clt_ip = client._users_lst[user].hostname
+            rmt_clt_port = int(client._users_lst[user].port)
+        except KeyError:
+            client.listusers()
+            try:
+                rmt_clt_ip = client._users_lst[user].hostname
+                rmt_clt_port = client._users_lst[user].port
+            except KeyError:
+                print("c> GET_FILE FAIL")
+                return client.RC.ERROR
+        
         # Conectar al cliente remoto
-        sock.connect((remote_ip, remote_port))
+        sock.connect((rmt_clt_ip, int(rmt_clt_port)))
 
         # Enviar el comando "GET FILE"
         message = 'GET_FILE\0'
@@ -369,13 +418,18 @@ class client :
 
         if result == 0:
             # Recibir el contenido del fichero y escribirlo al fichero local
-            with open(local_FileName, 'wb') as f:
-                while True:
-                    data = sock.recv(1024)
-                    if not data:
-                        break
-                    f.write(data)
-            print("c> GET_FILE OK")
+            try:
+                with open(local_FileName, 'wb') as f:
+                    while True:
+                        data = sock.recv(1024)
+                        if not data:
+                            break
+                        f.write(data)
+                print("c> GET_FILE OK")
+                return client.RC.OK
+            except:
+                print("c> GET_FILE FAIL")
+                return client.RC.ERROR
         elif result == 1:
             print("c> GET_FILE FAIL / FILE NOT EXIST")
         else:
@@ -463,8 +517,11 @@ class client :
                         print("Error: command " + line[0] + " not valid.")
             except KeyboardInterrupt:
                 print("Keyboard Interrupting the program")
-                if(client._user_connected):
-                    client.disconnect(client._user_connected)
+                try:
+                    if(client._user_connected):
+                        client.disconnect(client._user_connected)
+                except AttributeError:
+                    pass
                 break
             except Exception as e:
                 print("Exception: " + str(e))
@@ -508,8 +565,11 @@ class client :
 
         #  Write code here
         client.shell()
-        if(client._user_socket):
-            client._user_socket.close()
+        try:
+            if(client._user_socket):
+                client._user_socket.close()
+        except AttributeError:
+            pass
         print("+++ FINISHED +++")
     
 
