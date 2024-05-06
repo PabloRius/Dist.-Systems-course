@@ -30,6 +30,7 @@ class client :
     _user_socket:socket.socket
 
     _users_lst = {}
+    _content_lst = {}
 
     # ******************** METHODS *******************
     @staticmethod
@@ -87,6 +88,21 @@ class client :
         return client.RC.OK
 
     @staticmethod
+    def is_file_published(user, filename):
+        # Extraer los parámetros de conexión del cliente remoto
+        try:
+            # Estos parámetros se actualizan al hacer un list_users, en el caso de no haberlo hecho antes se hará de forma automática
+            # para intentar extraer los datos de conexión del cliente remoto desde el servidor
+            clt_cnt = client._content_lst[user].file_name
+        except KeyError:
+            client.listcontent(user)
+            clt_cnt = client._content_lst[user].file_name
+
+        if user in client._content_lst and client._content_lst[user].file_name == filename:
+            return True
+
+
+    @staticmethod
     def sock_listen():
         client._user_socket.listen(5)
         while True:
@@ -100,13 +116,14 @@ class client :
                         if (os.path.exists(file_path) and (os.path.isfile(file_path))):
                             # TODO: Comprobar que el fichero está publicado en el perfil del usuario antes de mandarlo
                             # Para evitar un injection attack
-                            conn.sendall("0\0".encode())
-                            try:
-                                with open(file_path, 'rb') as file:
-                                    conn.sendfile(file)
-                            except:
-                                # Error durante el envío del fichero 
-                                conn.sendall("2\0".encode())
+                            if client.is_file_published(client._user_connected, filename):
+                                conn.sendall("0\0".encode())
+                                try:
+                                    with open(file_path, 'rb') as file:
+                                        conn.sendfile(file)
+                                except:
+                                    # Error durante el envío del fichero 
+                                    conn.sendall("2\0".encode())
                         else:
                             # TODO: El error no1 debería devolverse si el fichero no se encuentra como subido al perfil del usuario
                             # TODO: Si este está subido pero en local no existe, debería ser error no2
@@ -126,6 +143,9 @@ class client :
                 # detener la ejecución del hilo
                 client._user_socket.close()
                 break
+    
+
+
     
     @staticmethod
     def  connect(user) :
@@ -367,10 +387,13 @@ class client :
             # Leer el número de ficheros que se enviarán
             print("c> LIST_CONTENT OK")
             num_files = int(client.readLine(sock))
+            new_content_list = {}
             for _ in range(num_files):
                 file_name = client.readLine(sock)
                 description = client.readLine(sock)
                 print(f'\t{file_name}\t{description}')
+                new_content_list[user] = user(file_name)
+            client._content_lst = new_content_list
                 
         elif res == 1:
             print("c> LIST_CONTENT FAIL, USER DOES NOT EXIST")
